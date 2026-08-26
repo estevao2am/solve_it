@@ -65,17 +65,17 @@ export class UsersService {
         password: true,
       },
 
-      include:{
-        store:{
-          select:{
-            id:true,
-            name:true,
-            profile_image:true,
-            origin_country:true,
-            adress:true,
-          }
-        }
-      }
+      include: {
+        store: {
+          select: {
+            id: true,
+            name: true,
+            profile_image: true,
+            origin_country: true,
+            address: true,
+          },
+        },
+      },
     });
 
     if (!user) {

@@ -5,6 +5,7 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
 // ==============================
 // USER
 // ==============================
@@ -14,7 +15,7 @@ model User {
 
   first_name String
   last_name  String?
-  email      String @unique
+  email      String  @unique
   password   String
   avatar_url String?
 
@@ -27,7 +28,6 @@ model User {
   @@map("users")
 }
 
-
 // ==============================
 // STORE
 // ==============================
@@ -37,19 +37,20 @@ model Store {
 
   name String
 
-  profile_image String?
-  cover_image   String?
-  adress       String?
+  profile_image  String?
+  cover_image    String?
+  address        String?
+  description    String?
   category       String?
   origin_country String?
 
   owner_id Int @unique
 
-  owner User @relation(fields: [owner_id],references: [id],onDelete: Cascade )
+  owner User @relation(fields: [owner_id], references: [id], onDelete: Cascade)
 
   products Product[]
 
-// Os pedidos desta loja, que podem estar em diferentes status (carrinho, pendente, pago, etc.)
+  // Os pedidos desta loja, que podem estar em diferentes status (carrinho, pendente, pago, etc.)
   order_stores OrderStore[]
 
   created_at DateTime @default(now())
@@ -57,7 +58,6 @@ model Store {
 
   @@map("stores")
 }
-
 
 // ==============================
 // CATEGORY
@@ -76,7 +76,6 @@ model Category {
   @@map("categories")
 }
 
-
 // ==============================
 // PRODUCT
 // ==============================
@@ -90,15 +89,15 @@ model Product {
   image_url   String?
 
   store_id Int
-    stock Int @default(0)
+  stock    Int @default(0)
 
-  store Store @relation(fields: [store_id],references: [id],onDelete: Cascade )
+  store Store @relation(fields: [store_id], references: [id], onDelete: Cascade)
 
   category_id Int
 
-  category Category @relation( fields: [category_id],references: [id] )
+  category Category @relation(fields: [category_id], references: [id])
 
-// Os itens de pedido que incluem este produto
+  // Os itens de pedido que incluem este produto
   order_items OrderItem[]
 
   created_at DateTime @default(now())
@@ -106,10 +105,8 @@ model Product {
 
   @@index([store_id])
   @@index([category_id])
-
   @@map("products")
 }
-
 
 // ==============================
 // ORDER
@@ -120,14 +117,14 @@ model Order {
 
   user_id Int
 
-  user User @relation(fields: [user_id],references: [id])
+  user User @relation(fields: [user_id], references: [id])
 
-// O valor total do pedido, que é a soma dos subtotais de cada loja envolvida
+  // O valor total do pedido, que é a soma dos subtotais de cada loja envolvida
   total Int @default(0)
 
   status OrderStatus @default(CART)
 
-// As lojas envolvidas neste pedido, cada uma com seu próprio subtotal e status
+  // As lojas envolvidas neste pedido, cada uma com seu próprio subtotal e status
   order_stores OrderStore[]
 
   created_at DateTime @default(now())
@@ -135,10 +132,8 @@ model Order {
 
   @@index([user_id])
   @@index([status])
-
   @@map("orders")
 }
-
 
 // ==============================
 // ORDER STORE
@@ -149,11 +144,11 @@ model OrderStore {
 
   order_id Int
 
-  order Order @relation(fields: [order_id],references: [id],onDelete: Cascade )
+  order Order @relation(fields: [order_id], references: [id], onDelete: Cascade)
 
   store_id Int
 
-  store Store @relation(fields: [store_id],references: [id] )
+  store Store @relation(fields: [store_id], references: [id])
 
   subtotal Int @default(0)
 
@@ -164,10 +159,8 @@ model OrderStore {
 
   @@unique([order_id, store_id])
   @@index([store_id])
-
   @@map("order_stores")
 }
-
 
 // ==============================
 // ORDER ITEM
@@ -176,14 +169,14 @@ model OrderStore {
 model OrderItem {
   id Int @id @default(autoincrement())
 
-// A loja que está vendendo este produto neste pedido
+  // A loja que está vendendo este produto neste pedido
   order_store_id Int
 
-  order_store OrderStore @relation( fields: [order_store_id], references: [id], onDelete: Cascade)
+  order_store OrderStore @relation(fields: [order_store_id], references: [id], onDelete: Cascade)
 
   product_id Int
 
-  product Product @relation( fields: [product_id],references: [id])
+  product Product @relation(fields: [product_id], references: [id])
 
   quantity Int
 
@@ -194,10 +187,8 @@ model OrderItem {
 
   @@unique([order_store_id, product_id])
   @@index([product_id])
-
   @@map("order_items")
 }
-
 
 // ==============================
 // ENUM

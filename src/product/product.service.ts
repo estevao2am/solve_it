@@ -1,4 +1,9 @@
-import { BadRequestException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  InternalServerErrorException,
+  NotFoundException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Readable } from 'node:stream';
 import { PrismaService } from '../prisma/prisma.service';
@@ -17,18 +22,17 @@ export class ProductService {
     });
   }
 
- async createProduct(
+  async createProduct(
     data: CreateProductDto,
     userId: number,
     file: Express.Multer.File,
   ) {
     // Verifica se o usuário possui uma loja
-    const store =
-      await this.prismaService.store.findUnique({
-        where: {
-          owner_id: userId,
-        },
-      });
+    const store = await this.prismaService.store.findUnique({
+      where: {
+        owner_id: userId,
+      },
+    });
 
     if (!store) {
       throw new NotFoundException(
@@ -37,62 +41,52 @@ export class ProductService {
     }
 
     // Verifica se a categoria existe
-    const category =
-      await this.prismaService.category.findUnique({
-        where: {
-          id: data.category_id,
-        },
-      });
+    const category = await this.prismaService.category.findUnique({
+      where: {
+        id: data.category_id,
+      },
+    });
 
     if (!category) {
-      throw new BadRequestException(
-        'Categoria não encontrada',
-      );
+      throw new BadRequestException('Categoria não encontrada');
     }
 
     // Verifica se recebeu imagem
     if (!file) {
-      throw new BadRequestException(
-        'A imagem do produto é obrigatória',
-      );
+      throw new BadRequestException('A imagem do produto é obrigatória');
     }
 
     // Upload para o Cloudinary
     let imageUrl: string;
 
     try {
-      const result = await new Promise<any>(
-        (resolve, reject) => {
-          const uploadStream =
-            cloudinary.uploader.upload_stream(
-              {
-                folder: 'products',
-                resource_type: 'image',
-                public_id: `${Date.now()}-${file.originalname
-                  .split('.')[0]
-                  .replace(/[^a-zA-Z0-9-_]/g, '')}`,
-              },
-              (error, result) => {
-                if (error) {
-                  reject(error);
-                  return;
-                }
+      const result = await new Promise<any>((resolve, reject) => {
+        const uploadStream = cloudinary.uploader.upload_stream(
+          {
+            folder: 'products',
+            resource_type: 'image',
+            public_id: `${Date.now()}-${file.originalname
+              .split('.')[0]
+              .replace(/[^a-zA-Z0-9-_]/g, '')}`,
+          },
+          (error, result) => {
+            if (error) {
+              reject(error);
+              return;
+            }
 
-                resolve(result);
-              },
-            );
+            resolve(result);
+          },
+        );
 
-          Readable.from(file.buffer).pipe(uploadStream);
-        },
-      );
+        Readable.from(file.buffer).pipe(uploadStream);
+      });
 
       imageUrl = result.secure_url;
     } catch (error) {
       console.error('Cloudinary error:', error);
 
-      throw new InternalServerErrorException(
-        'Erro ao fazer upload da imagem',
-      );
+      throw new InternalServerErrorException('Erro ao fazer upload da imagem');
     }
 
     // Cria o produto
@@ -118,38 +112,35 @@ export class ProductService {
     });
   }
 
+  async findAllProducts(page = 1) {
+    const limit = 10;
 
-  
- async findAllProducts(page = 1) {
-  const limit = 10;
+    const skip = (page - 1) * limit;
 
-  const skip = (page - 1) * limit;
+    const [products, total] = await Promise.all([
+      this.prismaService.product.findMany({
+        skip,
+        take: limit,
+        orderBy: {
+          created_at: 'desc',
+        },
+      }),
 
-  const [products, total] = await Promise.all([
-    this.prismaService.product.findMany({
-      skip,
-      take: limit,
-      orderBy: {
-        created_at: 'desc',
+      this.prismaService.product.count(),
+    ]);
+
+    return {
+      data: products,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+        hasNextPage: page < Math.ceil(total / limit),
+        hasPreviousPage: page > 1,
       },
-    }),
-
-    this.prismaService.product.count(),
-  ]);
-
-  return {
-    data: products,
-    pagination: {
-      page,
-      limit,
-      total,
-      totalPages: Math.ceil(total / limit),
-      hasNextPage: page < Math.ceil(total / limit),
-      hasPreviousPage: page > 1,
-    },
-  };
-}
-
+    };
+  }
 
   async findProductById(id: number) {
     const product = await this.prismaService.product.findUnique({

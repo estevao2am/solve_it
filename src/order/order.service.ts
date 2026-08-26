@@ -6,13 +6,11 @@ import {
 } from '@nestjs/common';
 
 import { PrismaService } from '../prisma/prisma.service';
-import { OrderStatus } from '../../generated/prisma/client';
+import { OrderStatus } from '@prisma/client';
 
 @Injectable()
 export class OrderService {
-  constructor(
-    private readonly prismaService: PrismaService,
-  ) {}
+  constructor(private readonly prismaService: PrismaService) {}
 
   // ============================================
   // CRIAR ORDER / CARRINHO
@@ -21,78 +19,72 @@ export class OrderService {
   async createOrder(userId: number) {
     // Verificar se já existe um carrinho
     // aberto para este usuário
-    const existingCart =
-      await this.prismaService.order.findFirst({
-        where: {
-          user_id: userId,
-          status: OrderStatus.CART,
-        },
-      });
+    const existingCart = await this.prismaService.order.findFirst({
+      where: {
+        user_id: userId,
+        status: OrderStatus.CART,
+      },
+    });
 
     if (existingCart) {
-      throw new ConflictException(
-        'Você já possui um carrinho ativo',
-      );
+      throw new ConflictException('Você já possui um carrinho ativo');
     }
 
     // Criar o carrinho
-const order = await this.prismaService.order.create({
-  data: {
-    user_id: userId,
-    total: 0,
-    status: OrderStatus.CART,
-  },
-
-  include: {
-    order_stores: {
-      include: {
-        store: true,
-        items: {
-          include: {
-            product: true,
-          },
-        },
+    const order = await this.prismaService.order.create({
+      data: {
+        user_id: userId,
+        total: 0,
+        status: OrderStatus.CART,
       },
-    },
-  },
-});
 
-    return order;
-  }
-
-
-async getMyCart(userId: number) {
-  const cart = await this.prismaService.order.findFirst({
-    where: {
-      user_id: userId,
-      status: OrderStatus.CART,
-    },
-
-    include: {
-      order_stores: {
-        include: {
-          store: true,
-
-          items: {
-            include: {
-              product: true,
+      include: {
+        order_stores: {
+          include: {
+            store: true,
+            items: {
+              include: {
+                product: true,
+              },
             },
           },
         },
       },
-    },
-  });
+    });
 
-  if (!cart) {
-    throw new NotFoundException(
-      'Você não possui um carrinho ativo',
-    );
+    return order;
   }
 
-  return cart;
-}
+  async getMyCart(userId: number) {
+    const cart = await this.prismaService.order.findFirst({
+      where: {
+        user_id: userId,
+        status: OrderStatus.CART,
+      },
 
-async addItem(userId: number, productId: number, quantity: number) {
+      include: {
+        order_stores: {
+          include: {
+            store: true,
+
+            items: {
+              include: {
+                product: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!cart) {
+      throw new NotFoundException('Você não possui um carrinho ativo');
+    }
+
+    return cart;
+  }
+
+  async addItem(userId: number, productId: number, quantity: number) {
     if (quantity <= 0) {
       throw new BadRequestException('Quantidade inválida');
     }
@@ -106,7 +98,9 @@ async addItem(userId: number, productId: number, quantity: number) {
     }
 
     if (product.stock < quantity) {
-      throw new BadRequestException('Quantidade solicitada maior que o estoque');
+      throw new BadRequestException(
+        'Quantidade solicitada maior que o estoque',
+      );
     }
 
     const cart = await this.prismaService.order.findFirst({
@@ -267,30 +261,28 @@ async addItem(userId: number, productId: number, quantity: number) {
       },
     };
   }
-async findOrderById(id: number) {
+  async findOrderById(id: number) {
     const order = await this.prismaService.order.findUnique({
-      where: { id },  
-    include: {
-      user: true,
-      order_stores: {
-        include: {
-          store: true,
-          items: {
-            include: { product: true },
+      where: { id },
+      include: {
+        user: true,
+        order_stores: {
+          include: {
+            store: true,
+            items: {
+              include: { product: true },
+            },
           },
         },
       },
-    },
-  });        
+    });
 
- 
     if (!order) {
       throw new NotFoundException('Pedido não encontrado');
-      }
-      return order;
-    }}
-
-
+    }
+    return order;
+  }
+}
 
 // TODO: Implementar a função de remover item do carrinho
 // TODO: Implementar a função de atualizar quantidade do item no carrinho
