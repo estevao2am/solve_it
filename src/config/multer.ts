@@ -1,11 +1,7 @@
 import { MulterOptions } from '@nestjs/platform-express/multer/interfaces/multer-options.interface';
 import multer from 'multer';
 
-const allowedMimes = [
-  'image/jpeg',
-  'image/jpg',
-  'image/png',
-];
+const allowedMimes = ['image/jpeg', 'image/jpg', 'image/png'];
 
 export const multerConfig: MulterOptions = {
   storage: multer.memoryStorage(),
@@ -19,9 +15,7 @@ export const multerConfig: MulterOptions = {
       cb(null, true);
     } else {
       cb(
-        new Error(
-          'Formato de arquivo inválido. Use apenas JPG, JPEG ou PNG.',
-        ),
+        new Error('Formato de arquivo inválido. Use apenas JPG, JPEG ou PNG.'),
         false,
       );
     }

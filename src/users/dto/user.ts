@@ -1,10 +1,4 @@
-
-import {
-  IsEmail,
-  IsNotEmpty,
-  IsOptional,
-  IsString,
-} from 'class-validator';
+import { IsEmail, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
 export class CreateUserDto {
   @IsNotEmpty()
@@ -28,23 +22,19 @@ export class CreateUserDto {
   password!: string;
 }
 
-
-
 export class UpdateUserDto {
-
-    first_name?: string;
-    last_name?: string;
-    avatar_url?: string;
-    email?: string;
-    password?: string;
+  first_name?: string;
+  last_name?: string;
+  avatar_url?: string;
+  email?: string;
+  password?: string;
 }
 
 export class LoginUserDto {
-    @IsNotEmpty()
+  @IsNotEmpty()
   @IsEmail()
-
-    email!: string;
-     @IsNotEmpty()
+  email!: string;
+  @IsNotEmpty()
   @IsString()
-    password!: string;
+  password!: string;
 }

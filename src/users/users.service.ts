@@ -3,7 +3,7 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { CreateUserDto, LoginUserDto } from './dto/user';
+import { CreateUserDto, LoginUserDto, UpdateUserDto } from './dto/user';
 import { PrismaService } from '../prisma/prisma.service';
 import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
@@ -83,5 +83,18 @@ export class UsersService {
     }
 
     return user;
+  }
+
+  async updateUser(id: number, data: UpdateUserDto) {
+    const findUser = await this.prismaService.user.findUnique({
+      where: { id },
+    });
+    if (!findUser) {
+      throw new NotFoundException('User notfound');
+    }
+    return await this.prismaService.user.update({
+      where: { id },
+      data,
+    });
   }
 }

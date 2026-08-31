@@ -1,13 +1,15 @@
 import {
   Body,
   Controller,
+  ForbiddenException,
   Get,
   Param,
   ParseIntPipe,
+  Patch,
   Post,
   UseGuards,
 } from '@nestjs/common';
-import { CreateUserDto, LoginUserDto } from './dto/user';
+import { CreateUserDto, LoginUserDto, UpdateUserDto } from './dto/user';
 import { UsersService } from './users.service';
 import { AuthGuard } from './auth.guard';
 import { CurrentUser } from './decorator/current-user.decorator';
@@ -33,9 +35,25 @@ export class UsersController {
     return await this.usersServices.findById(user.sub);
   }
 
+  // Endpoint to get the other user's information
+
   @UseGuards(AuthGuard)
   @Get(':id')
-  async findById(@Param('id', ParseIntPipe) id: number) {
+  async findUsersById(@Param('id', ParseIntPipe) id: number) {
     return await this.usersServices.findById(id);
+  }
+
+  @UseGuards(AuthGuard)
+  @Patch('/:id')
+  async updateUser(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: { sub: number },
+    @Body() body: UpdateUserDto,
+  ) {
+    if (id !== user.sub) {
+      throw new ForbiddenException('You can only update your own profile');
+    }
+
+    return await this.usersServices.updateUser(id, body);
   }
 }
