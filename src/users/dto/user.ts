@@ -23,11 +23,21 @@ export class CreateUserDto {
 }
 
 export class UpdateUserDto {
-  first_name?: string;
-  last_name?: string;
+  @IsNotEmpty()
+  @IsString()
+  first_name!: string;
+
+  @IsNotEmpty()
+  @IsString()
+  last_name!: string;
+
+  @IsOptional()
+  @IsString()
   avatar_url?: string;
-  email?: string;
-  password?: string;
+
+  @IsNotEmpty()
+  @IsEmail()
+  email!: string;
 }
 
 export class LoginUserDto {

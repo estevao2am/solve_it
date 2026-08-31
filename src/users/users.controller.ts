@@ -1,7 +1,6 @@
 import {
   Body,
   Controller,
-  ForbiddenException,
   Get,
   Param,
   ParseIntPipe,
@@ -43,17 +42,26 @@ export class UsersController {
     return await this.usersServices.findById(id);
   }
 
+  // @UseGuards(AuthGuard)
+  // @Patch('/:id')
+  // async updateUser(
+  //   @Param('id', ParseIntPipe) id: number,
+  //   @CurrentUser() user: { sub: number },
+  //   @Body() body: UpdateUserDto,
+  // ) {
+  //   if (id !== user.sub) {
+  //     throw new ForbiddenException('You can only update your own profile');
+  //   }
+
+  //   return await this.usersServices.updateUser(id, body);
+  // }
+
   @UseGuards(AuthGuard)
-  @Patch('/:id')
-  async updateUser(
-    @Param('id', ParseIntPipe) id: number,
+  @Patch('/me')
+  async updateMe(
     @CurrentUser() user: { sub: number },
     @Body() body: UpdateUserDto,
   ) {
-    if (id !== user.sub) {
-      throw new ForbiddenException('You can only update your own profile');
-    }
-
-    return await this.usersServices.updateUser(id, body);
+    return await this.usersServices.updateUser(user.sub, body);
   }
 }
