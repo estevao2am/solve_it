@@ -4,9 +4,11 @@ import { JwtModule, JwtModuleOptions } from '@nestjs/jwt';
 
 import { UsersController } from './users.controller';
 import { UsersService } from './users.service';
+import { MailModule } from 'src/config/mail/mail.module';
 
 @Module({
   imports: [
+    MailModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -16,7 +18,8 @@ import { UsersService } from './users.service';
         secret: configService.get<string>('JWT_SECRET'),
         signOptions: {
           // cast to any to satisfy JwtModuleOptions typing for expiresIn
-          expiresIn: (configService.get<string>('JWT_EXPIRES_IN') ?? '1h') as any,
+          expiresIn: (configService.get<string>('JWT_EXPIRES_IN') ??
+            '1h') as any,
         },
       }),
     }),

@@ -3,30 +3,50 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
+
 import { CreateUserDto, LoginUserDto, UpdateUserDto } from './dto/user';
+
 import { PrismaService } from '../prisma/prisma.service';
+
 import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
+import { MailService } from '../config/mail/MailService';
 
 @Injectable()
 export class UsersService {
   constructor(
-    private prismaService: PrismaService,
-    private jwtService: JwtService,
+    private readonly prismaService: PrismaService,
+    private readonly jwtService: JwtService,
+    private readonly mailService: MailService,
   ) {}
 
   async createUser(data: CreateUserDto) {
     const userAlreadyExists = await this.prismaService.user.findUnique({
-      where: { email: data.email },
+      where: {
+        email: data.email,
+      },
     });
+
     if (userAlreadyExists) {
       throw new UnauthorizedException('User already exists');
     }
+
     const hashedPassword = await bcrypt.hash(data.password, 10);
+
     const user = await this.prismaService.user.create({
-      data: { ...data, password: hashedPassword },
+      data: {
+        ...data,
+        password: hashedPassword,
+      },
     });
-    return user;
+
+    // Enviar email depois de criar o utilizador
+    await this.mailService.sendWelcomeEmail(user.email, user.first_name);
+
+    // Nunca retornar a password
+    const { password, ...userWithoutPassword } = user;
+
+    return userWithoutPassword;
   }
 
   async loginUser(data: LoginUserDto) {
@@ -50,9 +70,11 @@ export class UsersService {
       sub: user.id,
     });
 
+    const { password, ...userWithoutPassword } = user;
+
     return {
       access_token: accessToken,
-      user: user,
+      user: userWithoutPassword,
     };
   }
 
@@ -61,6 +83,7 @@ export class UsersService {
       where: {
         id,
       },
+
       omit: {
         password: true,
       },
@@ -87,13 +110,19 @@ export class UsersService {
 
   async updateUser(id: number, data: UpdateUserDto) {
     const findUser = await this.prismaService.user.findUnique({
-      where: { id },
+      where: {
+        id,
+      },
     });
+
     if (!findUser) {
-      throw new NotFoundException('User notfound');
+      throw new NotFoundException('User not found');
     }
-    return await this.prismaService.user.update({
-      where: { id },
+
+    return this.prismaService.user.update({
+      where: {
+        id,
+      },
       data,
     });
   }

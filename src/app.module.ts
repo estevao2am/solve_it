@@ -8,6 +8,7 @@ import { StoreModule } from './store/store.module';
 import { CategoryModule } from './category/category.module';
 import { ProductModule } from './product/product.module';
 import { OrderModule } from './order/order.module';
+import { MailModule } from './config/mail/mail.module';
 
 @Module({
   imports: [
@@ -15,6 +16,8 @@ import { OrderModule } from './order/order.module';
       isGlobal: true,
     }),
     PrismaModule,
+    MailModule,
+
     UsersModule,
     StoreModule,
     CategoryModule,

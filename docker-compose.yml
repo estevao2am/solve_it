@@ -2,14 +2,29 @@ services:
   postgres:
     container_name: mister_pizza
     image: bitnami/postgresql:latest
+
     environment:
       POSTGRES_USER: docker
       POSTGRES_PASSWORD: docker
       POSTGRES_DB: mister_pizza_db
+
     ports:
-      - 5432:5432
+      - '5432:5432'
+
     volumes:
-      - postgres_data:/bitnami/postgressql/
+      - postgres_data:/bitnami/postgresql
+
+  mailpit:
+    container_name: mister_mailpit
+    image: axllent/mailpit:latest
+
+    ports:
+      - '8025:8025'
+      - '1025:1025'
+
+    volumes:
+      - mailpit_data:/data
 
 volumes:
   postgres_data:
+  mailpit_data:
