@@ -3,7 +3,6 @@ import {
   Controller,
   Get,
   Param,
-  ParseIntPipe,
   Post,
   UseGuards,
   UploadedFiles,
@@ -41,7 +40,7 @@ export class StoresController {
       profile_image?: Express.Multer.File[];
       cover_image?: Express.Multer.File[];
     },
-    @CurrentUser() user: { sub: number },
+    @CurrentUser() user: { sub: string },
   ) {
     return this.storesService.createStore(data, user.sub, files);
   }
@@ -51,7 +50,7 @@ export class StoresController {
    */
   @UseGuards(AuthGuard)
   @Get('me')
-  async myStore(@CurrentUser() user: { sub: number }) {
+  async myStore(@CurrentUser() user: { sub: string }) {
     return this.storesService.findMyStore(user.sub);
   }
 
@@ -60,7 +59,7 @@ export class StoresController {
    */
   @UseGuards(AuthGuard)
   @Get(':id')
-  async findById(@Param('id', ParseIntPipe) id: number) {
+  async findById(@Param('id') id: string) {
     return this.storesService.findById(id);
   }
 }

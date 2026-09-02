@@ -3,15 +3,18 @@ import {
   Controller,
   Get,
   Param,
-  ParseIntPipe,
   Patch,
   Post,
   UseGuards,
+  UseInterceptors,
+  UploadedFile,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { CreateUserDto, LoginUserDto, UpdateUserDto } from './dto/user';
 import { UsersService } from './users.service';
 import { AuthGuard } from './auth.guard';
 import { CurrentUser } from './decorator/current-user.decorator';
+import { multerConfig } from '../config/multer';
 
 @Controller('users')
 export class UsersController {
@@ -30,7 +33,7 @@ export class UsersController {
   // Endpoint to get the current authenticated user's information
   @UseGuards(AuthGuard)
   @Get('/me')
-  async me(@CurrentUser() user: { sub: number }) {
+  async me(@CurrentUser() user: { sub: string }) {
     return await this.usersServices.findById(user.sub);
   }
 
@@ -38,15 +41,15 @@ export class UsersController {
 
   @UseGuards(AuthGuard)
   @Get(':id')
-  async findUsersById(@Param('id', ParseIntPipe) id: number) {
+  async findUsersById(@Param('id') id: string) {
     return await this.usersServices.findById(id);
   }
 
   // @UseGuards(AuthGuard)
   // @Patch('/:id')
   // async updateUser(
-  //   @Param('id', ParseIntPipe) id: number,
-  //   @CurrentUser() user: { sub: number },
+  //   @Param('id', ParseIntPipe) id: string,
+  //   @CurrentUser() user: { sub: string },
   //   @Body() body: UpdateUserDto,
   // ) {
   //   if (id !== user.sub) {
@@ -59,9 +62,19 @@ export class UsersController {
   @UseGuards(AuthGuard)
   @Patch('/me')
   async updateMe(
-    @CurrentUser() user: { sub: number },
+    @CurrentUser() user: { sub: string },
     @Body() body: UpdateUserDto,
   ) {
     return await this.usersServices.updateUser(user.sub, body);
+  }
+
+  @UseGuards(AuthGuard)
+  @Post('/me/avatar')
+  @UseInterceptors(FileInterceptor('avatar', multerConfig))
+  async uploadAvatar(
+    @CurrentUser() user: { sub: string },
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    return await this.usersServices.uploadAvatar(user.sub, file);
   }
 }

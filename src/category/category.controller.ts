@@ -4,7 +4,6 @@ import {
   Delete,
   Get,
   Param,
-  ParseIntPipe,
   Patch,
   Post,
 } from '@nestjs/common';
@@ -26,20 +25,20 @@ export class CategoryController {
   }
 
   @Get(':id')
-  async findCategoryById(@Param('id', ParseIntPipe) id: number) {
+  async findCategoryById(@Param('id') id: string) {
     return await this.categoryService.findCategoryById(id);
   }
 
   @Patch(':id')
   async updateCategory(
-    @Param('id', ParseIntPipe) id: number,
+    @Param('id') id: string,
     @Body() body: UpdateCategoryDto,
   ) {
     return await this.categoryService.updateCategory(id, body);
   }
 
   @Delete(':id')
-  async deleteCategory(@Param('id', ParseIntPipe) id: number) {
+  async deleteCategory(@Param('id') id: string) {
     return await this.categoryService.deleteCategory(id);
   }
 }

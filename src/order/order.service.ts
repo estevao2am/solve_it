@@ -16,7 +16,7 @@ export class OrderService {
   // CRIAR ORDER / CARRINHO
   // ============================================
 
-  async createOrder(userId: number) {
+  async createOrder(userId: string) {
     // Verificar se já existe um carrinho
     // aberto para este usuário
     const existingCart = await this.prismaService.order.findFirst({
@@ -55,7 +55,7 @@ export class OrderService {
     return order;
   }
 
-  async getMyCart(userId: number) {
+  async getMyCart(userId: string) {
     const cart = await this.prismaService.order.findFirst({
       where: {
         user_id: userId,
@@ -84,7 +84,7 @@ export class OrderService {
     return cart;
   }
 
-  async addItem(userId: number, productId: number, quantity: number) {
+  async addItem(userId: string, productId: string, quantity: number) {
     if (quantity <= 0) {
       throw new BadRequestException('Quantidade inválida');
     }
@@ -261,7 +261,7 @@ export class OrderService {
       },
     };
   }
-  async findOrderById(id: number) {
+  async findOrderById(id: string) {
     const order = await this.prismaService.order.findUnique({
       where: { id },
       include: {

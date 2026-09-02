@@ -24,7 +24,7 @@ export class ProductService {
 
   async createProduct(
     data: CreateProductDto,
-    userId: number,
+    userId: string,
     file: Express.Multer.File,
   ) {
     // Verifica se o usuário possui uma loja
@@ -142,7 +142,7 @@ export class ProductService {
     };
   }
 
-  async findProductById(id: number) {
+  async findProductById(id: string) {
     const product = await this.prismaService.product.findUnique({
       where: { id },
     });
@@ -154,7 +154,7 @@ export class ProductService {
     return product;
   }
 
-  async updateProduct(id: number, data: UpdateProductDto) {
+  async updateProduct(id: string, data: UpdateProductDto) {
     await this.findProductById(id);
 
     return await this.prismaService.product.update({
@@ -163,7 +163,7 @@ export class ProductService {
     });
   }
 
-  async deleteProduct(id: number) {
+  async deleteProduct(id: string) {
     await this.findProductById(id);
 
     return await this.prismaService.product.delete({
@@ -171,7 +171,7 @@ export class ProductService {
     });
   }
 
-  async findProductsByStoreId(storeId: number, page = 1) {
+  async findProductsByStoreId(storeId: string, page = 1) {
     const store = await this.prismaService.store.findUnique({
       where: { id: storeId },
     });

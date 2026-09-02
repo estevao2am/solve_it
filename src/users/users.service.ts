@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   UnauthorizedException,
+  BadRequestException,
 } from '@nestjs/common';
 
 import { CreateUserDto, LoginUserDto, UpdateUserDto } from './dto/user';
@@ -11,6 +12,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
 import { MailService } from '../config/mail/MailService';
+import { Readable } from 'stream';
+import cloudinary from '../config/cloudinary ';
 
 @Injectable()
 export class UsersService {
@@ -78,7 +81,7 @@ export class UsersService {
     };
   }
 
-  async findById(id: number) {
+  async findById(id: string) {
     const user = await this.prismaService.user.findUnique({
       where: {
         id,
@@ -108,7 +111,7 @@ export class UsersService {
     return user;
   }
 
-  async updateUser(id: number, data: UpdateUserDto) {
+  async updateUser(id: string, data: UpdateUserDto) {
     const findUser = await this.prismaService.user.findUnique({
       where: {
         id,
@@ -125,5 +128,58 @@ export class UsersService {
       },
       data,
     });
+  }
+
+  async uploadAvatar(id: string, file: Express.Multer.File) {
+    const findUser = await this.prismaService.user.findUnique({
+      where: {
+        id,
+      },
+    });
+
+    if (!findUser) {
+      throw new NotFoundException('User not found');
+    }
+
+    if (!file) {
+      throw new BadRequestException('No file provided');
+    }
+
+    try {
+      // Upload to Cloudinary using stream
+      const cloudinaryUpload = await new Promise<{
+        secure_url: string;
+        [key: string]: any;
+      }>((resolve, reject) => {
+        const uploadStream = cloudinary.uploader.upload_stream(
+          {
+            folder: 'user_avatars',
+            resource_type: 'auto',
+          },
+          (error: any, result: any) => {
+            if (error) reject(error);
+            else resolve(result);
+          },
+        );
+
+        // Convert buffer to stream and pipe to Cloudinary
+        const stream = Readable.from(file.buffer);
+        stream.pipe(uploadStream);
+      });
+
+      // Update user with the avatar URL from Cloudinary
+      return this.prismaService.user.update({
+        where: {
+          id,
+        },
+        data: {
+          avatar_url: cloudinaryUpload.secure_url,
+        },
+      });
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
+      throw new BadRequestException(`Failed to upload avatar: ${errorMessage}`);
+    }
   }
 }

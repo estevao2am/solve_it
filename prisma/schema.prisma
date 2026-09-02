@@ -11,7 +11,7 @@ datasource db {
 // ==============================
 
 model User {
-  id Int @id @default(autoincrement())
+  id String @id @default(uuid())
 
   first_name String
   last_name  String?
@@ -19,8 +19,9 @@ model User {
   password   String
   avatar_url String?
 
-  store  Store?
-  orders Order[]
+  store         Store?
+  refresh_token RefreshToken?
+  orders        Order[]
 
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
@@ -29,11 +30,30 @@ model User {
 }
 
 // ==============================
+// REFRESH TOKEN
+// ==============================
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  tokenHash String   @unique @map("token_hash")
+  expiresIn DateTime @map("expires_in")
+  isRevoked Boolean  @default(false) @map("is_revoked")
+
+  userId String @unique @map("user_id")
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("refresh_token")
+}
+
+// ==============================
 // STORE
 // ==============================
 
 model Store {
-  id Int @id @default(autoincrement())
+  id String @id @default(uuid())
 
   name String
 
@@ -44,7 +64,7 @@ model Store {
   category       String?
   origin_country String?
 
-  owner_id Int @unique
+  owner_id String @unique
 
   owner User @relation(fields: [owner_id], references: [id], onDelete: Cascade)
 
@@ -64,7 +84,7 @@ model Store {
 // ==============================
 
 model Category {
-  id Int @id @default(autoincrement())
+  id String @id @default(uuid())
 
   name String @unique
 
@@ -81,19 +101,19 @@ model Category {
 // ==============================
 
 model Product {
-  id Int @id @default(autoincrement())
+  id String @id @default(uuid())
 
   name        String
   description String
   price       Int
   image_url   String?
 
-  store_id Int
-  stock    Int @default(0)
+  store_id String
+  stock    Int    @default(0)
 
   store Store @relation(fields: [store_id], references: [id], onDelete: Cascade)
 
-  category_id Int
+  category_id String
 
   category Category @relation(fields: [category_id], references: [id])
 
@@ -113,9 +133,9 @@ model Product {
 // ==============================
 // Um pedido é feito por um usuário e pode incluir produtos de diferentes lojas. Cada loja terá seu próprio subtotal e status de pedido.
 model Order {
-  id Int @id @default(autoincrement())
+  id String @id @default(uuid())
 
-  user_id Int
+  user_id String
 
   user User @relation(fields: [user_id], references: [id])
 
@@ -140,13 +160,13 @@ model Order {
 // ==============================
 
 model OrderStore {
-  id Int @id @default(autoincrement())
+  id String @id @default(uuid())
 
-  order_id Int
+  order_id String
 
   order Order @relation(fields: [order_id], references: [id], onDelete: Cascade)
 
-  store_id Int
+  store_id String
 
   store Store @relation(fields: [store_id], references: [id])
 
@@ -167,14 +187,14 @@ model OrderStore {
 // ==============================
 
 model OrderItem {
-  id Int @id @default(autoincrement())
+  id String @id @default(uuid())
 
   // A loja que está vendendo este produto neste pedido
-  order_store_id Int
+  order_store_id String
 
   order_store OrderStore @relation(fields: [order_store_id], references: [id], onDelete: Cascade)
 
-  product_id Int
+  product_id String
 
   product Product @relation(fields: [product_id], references: [id])
 

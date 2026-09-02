@@ -1,11 +1,10 @@
 import {
-    Body,
+  Body,
   Controller,
   Get,
   Post,
   UseGuards,
   Param,
-  ParseIntPipe,
   Query,
 } from '@nestjs/common';
 
@@ -16,15 +15,11 @@ import { AddOrderItemDto } from './dto/add-order-item.dto';
 
 @Controller('order')
 export class OrderController {
-  constructor(
-    private readonly orderService: OrderService,
-  ) {}
+  constructor(private readonly orderService: OrderService) {}
 
   @UseGuards(AuthGuard)
   @Post()
-  async createOrder(
-    @CurrentUser() user: { sub: number },
-  ) {
+  async createOrder(@CurrentUser() user: { sub: string }) {
     return this.orderService.createOrder(user.sub);
   }
 
@@ -33,32 +28,27 @@ export class OrderController {
     return this.orderService.getAllOrders(Number(page));
   }
 
-@UseGuards(AuthGuard)
+  @UseGuards(AuthGuard)
   @Get('cart')
-  async getMyCart(
-    @CurrentUser() user: { sub: number },
-  ) {
+  async getMyCart(@CurrentUser() user: { sub: string }) {
     return this.orderService.getMyCart(user.sub);
   }
 
-    // ============================================
+  // ============================================
   // ADICIONAR PRODUTO AO CARRINHO
   // ============================================
 
   @UseGuards(AuthGuard)
   @Post('cart/item')
   async addProductToCart(
-    @CurrentUser() user: { sub: number },
+    @CurrentUser() user: { sub: string },
     @Body() data: AddOrderItemDto,
   ) {
-    return this.orderService.addItem(
-      user.sub,
-      data.product_id,
-      data.quantity,
-    );
+    return this.orderService.addItem(user.sub, data.product_id, data.quantity);
   }
 
   @Get(':id')
-  async getOrderById(@Param('id', ParseIntPipe) id: number) {
-    return this.orderService.findOrderById(id);}
+  async getOrderById(@Param('id') id: string) {
+    return this.orderService.findOrderById(id);
+  }
 }

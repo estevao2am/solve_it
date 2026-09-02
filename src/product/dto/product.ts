@@ -1,5 +1,13 @@
 import { Type } from 'class-transformer';
-import { IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import {
+  IsInt,
+  IsNotEmpty,
+  IsNumber,
+  IsOptional,
+  isString,
+  IsString,
+  Min,
+} from 'class-validator';
 
 export class CreateProductDto {
   @IsNotEmpty()
@@ -19,14 +27,11 @@ export class CreateProductDto {
   @IsString()
   image_url?: string;
 
-  @Type(() => Number)
+  @Type(() => isString)
   @IsInt()
   @Min(1)
-  category_id!: number;
+  category_id!: string;
 }
-
-  
-
 
 export class UpdateProductDto {
   @IsOptional()
@@ -46,10 +51,10 @@ export class UpdateProductDto {
   image_url?: string;
 
   @IsOptional()
-  @IsInt()
-  store_id?: number;
+  @IsString()
+  store_id?: string;
 
   @IsOptional()
-  @IsInt()
-  category_id?: number;
+  @IsString()
+  category_id?: string;
 }

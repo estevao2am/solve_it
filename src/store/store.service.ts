@@ -25,7 +25,7 @@ export class StoresService {
 
   async createStore(
     data: CreateStoreDto,
-    userId: number,
+    userId: string,
     files?: {
       profile_image?: Express.Multer.File[];
       cover_image?: Express.Multer.File[];
@@ -56,7 +56,7 @@ export class StoresService {
             public_id: `${Date.now()}-${publicIdSuffix}`,
           },
           (error, res) => {
-            if (error) return reject(error);
+            if (error) return reject(new Error(error.message));
             resolve(res);
           },
         );
@@ -111,7 +111,7 @@ export class StoresService {
     });
   }
 
-  async findById(id: number) {
+  async findById(id: string) {
     const store = await this.prismaService.store.findUnique({
       where: {
         id,
@@ -136,7 +136,7 @@ export class StoresService {
     return store;
   }
 
-  async findMyStore(userId: number) {
+  async findMyStore(userId: string) {
     const store = await this.prismaService.store.findUnique({
       where: {
         owner_id: userId,
