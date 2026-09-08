@@ -9,6 +9,7 @@ import { MailModule } from './config/mail/mail.module';
 import { CategoryModule } from './category/category.module';
 import { JobsService } from './job/job.service';
 import { JobModule } from './job/job.module';
+import { LocationModule } from './location/location.module';
 
 @Module({
   imports: [
@@ -23,6 +24,8 @@ import { JobModule } from './job/job.module';
     CategoryModule,
 
     JobModule,
+
+    LocationModule,
   ],
   controllers: [AppController],
   providers: [AppService, JobsService],
