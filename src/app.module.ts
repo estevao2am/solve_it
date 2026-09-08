@@ -7,6 +7,8 @@ import { UsersModule } from './users/users.module';
 
 import { MailModule } from './config/mail/mail.module';
 import { CategoryModule } from './category/category.module';
+import { JobsService } from './job/job.service';
+import { JobModule } from './job/job.module';
 
 @Module({
   imports: [
@@ -19,8 +21,10 @@ import { CategoryModule } from './category/category.module';
     UsersModule,
 
     CategoryModule,
+
+    JobModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [AppService, JobsService],
 })
 export class AppModule {}
