@@ -1,44 +1,39 @@
 import {
   Body,
   Controller,
-  Delete,
   Get,
   Param,
-  Patch,
   Post,
+  UseGuards,
+  UploadedFiles,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileFieldsInterceptor } from '@nestjs/platform-express';
+
 import { CategoryService } from './category.service';
-import { CreateCategoryDto, UpdateCategoryDto } from './dto/category';
+import { CreateCategoryDto } from './dto/category';
+import { multerConfig } from 'src/config/multer';
 
-@Controller('category')
+@Controller('categories')
 export class CategoryController {
-  constructor(private readonly categoryService: CategoryService) {}
+  constructor(private categoryService: CategoryService) {}
 
-  @Post()
-  async createCategory(@Body() body: CreateCategoryDto) {
-    return await this.categoryService.createCategory(body);
-  }
-
-  @Get()
-  async findAllCategories() {
-    return await this.categoryService.findAllCategories();
-  }
-
-  @Get(':id')
-  async findCategoryById(@Param('id') id: string) {
-    return await this.categoryService.findCategoryById(id);
-  }
-
-  @Patch(':id')
-  async updateCategory(
-    @Param('id') id: string,
-    @Body() body: UpdateCategoryDto,
+  @Post('/')
+  @UseInterceptors(
+    FileFieldsInterceptor([{ name: 'imageUrl', maxCount: 1 }], multerConfig),
+  )
+  async createCategory(
+    @Body() data: CreateCategoryDto,
+    @UploadedFiles()
+    files: {
+      imageUrl?: Express.Multer.File[];
+    },
   ) {
-    return await this.categoryService.updateCategory(id, body);
+    return await this.categoryService.createCategory(data, files);
   }
 
-  @Delete(':id')
-  async deleteCategory(@Param('id') id: string) {
-    return await this.categoryService.deleteCategory(id);
+  @Get('/')
+  async getAllAcategories() {
+    return await this.categoryService.GetAllCategories();
   }
 }

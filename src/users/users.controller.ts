@@ -10,7 +10,12 @@ import {
   UploadedFile,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { CreateUserDto, LoginUserDto, UpdateUserDto } from './dto/user';
+import {
+  CreateUserDto,
+  LoginUserDto,
+  RefreshTokenDto,
+  UpdateUserDto,
+} from './dto/user';
 import { UsersService } from './users.service';
 import { AuthGuard } from './auth.guard';
 import { CurrentUser } from './decorator/current-user.decorator';
@@ -28,6 +33,11 @@ export class UsersController {
   @Post('/login')
   async loginUser(@Body() body: LoginUserDto) {
     return await this.usersServices.loginUser(body);
+  }
+
+  @Post('/refresh')
+  async refreshToken(@Body() body: RefreshTokenDto) {
+    return await this.usersServices.refreshToken(body.refresh_token);
   }
 
   // Endpoint to get the current authenticated user's information

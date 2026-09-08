@@ -10,12 +10,12 @@ export class MailService {
 
     await this.mailerService.sendMail({
       to: email,
-      subject: 'Bem-vindo ao Mister Pizza 🍕',
+      subject: 'Bem-vindo ao Resolve  ',
 
       text: `Olá ${name ?? 'Utilizador'}, bem-vindo ao Mister Pizza!`,
 
       html: `
-        <h1>Olá ${name ?? 'Utilizador'}! 🍕</h1>
+        <h1>Olá ${name ?? 'Utilizador'}! 🔧</h1>
 
         <p>
           Bem-vindo ao <strong>Mister Pizza</strong>.

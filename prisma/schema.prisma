@@ -9,22 +9,43 @@ datasource db {
 // ==============================
 // USER
 // ==============================
+enum Role {
+  USER
+  ADMIN
+}
+
+enum JobStatus {
+  OPEN
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
 
 model User {
   id String @id @default(uuid())
 
-  first_name String
-  last_name  String?
-  email      String  @unique
-  password   String
+  first_name    String
+  last_name     String?
+  email         String  @unique
+  password_hash String
+  city          String?
+  address       String?
+  phone         String?
+  postal_code   String?
+
   avatar_url String?
+  role       Role    @default(USER)
 
-  store         Store?
   refresh_token RefreshToken?
-  orders        Order[]
+  // Perfil opcional para quando o utilizador decide ser profissional
+  professional  ProfessionalProfile?
 
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
+  created_at      DateTime   @default(now())
+  updated_at      DateTime   @updatedAt
+  jobs            Job[]      @relation("ClientJobs")
+  reviewsGiven    Review[]   @relation("ReviewsGiven")
+  reviewsReceived Review[]   @relation("ReviewsReceived")
+  proposals       Proposal[] @relation("ProfessionalProposals")
 
   @@map("users")
 }
@@ -49,177 +70,87 @@ model RefreshToken {
 }
 
 // ==============================
-// STORE
-// ==============================
-
-model Store {
-  id String @id @default(uuid())
-
-  name String
-
-  profile_image  String?
-  cover_image    String?
-  address        String?
-  description    String?
-  category       String?
-  origin_country String?
-
-  owner_id String @unique
-
-  owner User @relation(fields: [owner_id], references: [id], onDelete: Cascade)
-
-  products Product[]
-
-  // Os pedidos desta loja, que podem estar em diferentes status (carrinho, pendente, pago, etc.)
-  order_stores OrderStore[]
-
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
-
-  @@map("stores")
-}
-
-// ==============================
 // CATEGORY
 // ==============================
 
+model ProfessionalProfile {
+  id     String @id @default(uuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  bio         String?
+  hourlyRate  Decimal?
+  isAvailable Boolean    @default(true)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  categories  Category[] // Relação direta implícita
+}
+
 model Category {
-  id String @id @default(uuid())
-
-  name String @unique
-
-  products Product[]
-
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
-
-  @@map("categories")
-}
-
-// ==============================
-// PRODUCT
-// ==============================
-
-model Product {
-  id String @id @default(uuid())
-
-  name        String
-  description String
-  price       Int
-  image_url   String?
-
-  store_id String
-  stock    Int    @default(0)
-
-  store Store @relation(fields: [store_id], references: [id], onDelete: Cascade)
-
-  category_id String
-
-  category Category @relation(fields: [category_id], references: [id])
-
-  // Os itens de pedido que incluem este produto
-  order_items OrderItem[]
-
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
-
-  @@index([store_id])
-  @@index([category_id])
-  @@map("products")
-}
-
-// ==============================
-// ORDER
-// ==============================
-// Um pedido é feito por um usuário e pode incluir produtos de diferentes lojas. Cada loja terá seu próprio subtotal e status de pedido.
-model Order {
-  id String @id @default(uuid())
-
-  user_id String
-
-  user User @relation(fields: [user_id], references: [id])
-
-  // O valor total do pedido, que é a soma dos subtotais de cada loja envolvida
-  total Int @default(0)
-
-  status OrderStatus @default(CART)
-
-  // As lojas envolvidas neste pedido, cada uma com seu próprio subtotal e status
-  order_stores OrderStore[]
-
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
-
-  @@index([user_id])
-  @@index([status])
-  @@map("orders")
-}
-
-// ==============================
-// ORDER STORE
-// ==============================
-
-model OrderStore {
-  id String @id @default(uuid())
-
-  order_id String
-
-  order Order @relation(fields: [order_id], references: [id], onDelete: Cascade)
-
-  store_id String
-
-  store Store @relation(fields: [store_id], references: [id])
-
-  subtotal Int @default(0)
-
-  items OrderItem[]
-
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
-
-  @@unique([order_id, store_id])
-  @@index([store_id])
-  @@map("order_stores")
-}
-
-// ==============================
-// ORDER ITEM
-// ==============================
-
-model OrderItem {
-  id String @id @default(uuid())
-
-  // A loja que está vendendo este produto neste pedido
-  order_store_id String
-
-  order_store OrderStore @relation(fields: [order_store_id], references: [id], onDelete: Cascade)
-
-  product_id String
-
-  product Product @relation(fields: [product_id], references: [id])
-
-  quantity Int
-
-  unit_price Int
-
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
-
-  @@unique([order_store_id, product_id])
-  @@index([product_id])
-  @@map("order_items")
+  id            String                @id @default(uuid())
+  name          String                @unique
+  imageUrl      String?
+  jobs          Job[]
+  professionals ProfessionalProfile[] // Relação direta implícita
 }
 
 // ==============================
 // ENUM
 // ==============================
 
-enum OrderStatus {
-  CART
-  PENDING
-  CONFIRMED
-  PROCESSING
-  SHIPPED
-  DELIVERED
-  CANCELLED
+model Job {
+  id          String    @id @default(uuid())
+  title       String
+  description String
+  status      JobStatus @default(OPEN)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  clientId String
+  client   User   @relation("ClientJobs", fields: [clientId], references: [id])
+
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id])
+
+  images    JobImage[]
+  proposals Proposal[]
+  reviews   Review[]
+}
+
+model JobImage {
+  id        String   @id @default(uuid())
+  url       String
+  createdAt DateTime @default(now())
+
+  jobId String
+  job   Job    @relation(fields: [jobId], references: [id], onDelete: Cascade)
+}
+
+model Review {
+  id        String   @id @default(uuid())
+  rating    Int // Ex: 1 a 5
+  comment   String?
+  createdAt DateTime @default(now())
+
+  jobId String
+  job   Job    @relation(fields: [jobId], references: [id])
+
+  authorId String
+  author   User   @relation("ReviewsGiven", fields: [authorId], references: [id])
+
+  targetId String
+  target   User   @relation("ReviewsReceived", fields: [targetId], references: [id])
+}
+
+model Proposal {
+  id          String   @id @default(uuid())
+  price       Decimal
+  coverLetter String?
+  createdAt   DateTime @default(now())
+
+  jobId String
+  job   Job    @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  professionalId String
+  professional   User   @relation("ProfessionalProposals", fields: [professionalId], references: [id])
 }

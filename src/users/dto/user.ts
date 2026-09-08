@@ -19,7 +19,23 @@ export class CreateUserDto {
 
   @IsNotEmpty()
   @IsString()
-  password!: string;
+  address!: string;
+
+  @IsNotEmpty()
+  @IsString()
+  postal_code!: string;
+
+  @IsNotEmpty()
+  @IsString()
+  city!: string;
+
+  @IsNotEmpty()
+  @IsString()
+  phone!: string;
+
+  @IsNotEmpty()
+  @IsString()
+  password_hash!: string;
 }
 
 export class UpdateUserDto {
@@ -46,5 +62,11 @@ export class LoginUserDto {
   email!: string;
   @IsNotEmpty()
   @IsString()
-  password!: string;
+  password_hash!: string;
+}
+
+export class RefreshTokenDto {
+  @IsNotEmpty()
+  @IsString()
+  refresh_token!: string;
 }

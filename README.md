@@ -40,6 +40,8 @@ Create a `.env` file with at least:
 ```env
 DATABASE_URL=your_postgres_connection_string
 JWT_SECRET=your_jwt_secret
+JWT_EXPIRES_IN=1h
+JWT_REFRESH_EXPIRES_IN=7d
 CLOUDINARY_CLOUD_NAME=your_cloud_name
 CLOUDINARY_API_KEY=your_api_key
 CLOUDINARY_API_SECRET=your_api_secret
@@ -69,6 +71,7 @@ npm run start:dev
 
 - `POST /users` - Create a new user
 - `POST /users/login` - Login and receive JWT token
+- `POST /users/refresh` - Rotate the refresh token and receive new tokens
 - `GET /users/me` - Get authenticated user profile
 - `GET /users/:id` - Get user by id
 

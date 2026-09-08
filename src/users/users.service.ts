@@ -4,15 +4,15 @@ import {
   UnauthorizedException,
   BadRequestException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 
 import { CreateUserDto, LoginUserDto, UpdateUserDto } from './dto/user';
-
 import { PrismaService } from '../prisma/prisma.service';
-
 import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
 import { MailService } from '../config/mail/MailService';
 import { Readable } from 'stream';
+import { createHash, randomBytes } from 'crypto';
 import cloudinary from '../config/cloudinary ';
 
 @Injectable()
@@ -21,6 +21,7 @@ export class UsersService {
     private readonly prismaService: PrismaService,
     private readonly jwtService: JwtService,
     private readonly mailService: MailService,
+    private readonly configService: ConfigService,
   ) {}
 
   async createUser(data: CreateUserDto) {
@@ -34,12 +35,12 @@ export class UsersService {
       throw new UnauthorizedException('User already exists');
     }
 
-    const hashedPassword = await bcrypt.hash(data.password, 10);
+    const hashedPassword = await bcrypt.hash(data.password_hash, 10);
 
     const user = await this.prismaService.user.create({
       data: {
         ...data,
-        password: hashedPassword,
+        password_hash: hashedPassword,
       },
     });
 
@@ -47,7 +48,8 @@ export class UsersService {
     await this.mailService.sendWelcomeEmail(user.email, user.first_name);
 
     // Nunca retornar a password
-    const { password, ...userWithoutPassword } = user;
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { password_hash, ...userWithoutPassword } = user;
 
     return userWithoutPassword;
   }
@@ -63,22 +65,123 @@ export class UsersService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    const isPasswordValid = await bcrypt.compare(data.password, user.password);
+    const isPasswordValid = await bcrypt.compare(
+      data.password_hash,
+      user.password_hash,
+    );
 
     if (!isPasswordValid) {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    const accessToken = await this.jwtService.signAsync({
-      sub: user.id,
+    const tokens = await this.issueTokens(user.id);
+
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { password_hash, ...userWithoutPassword } = user;
+
+    return {
+      ...tokens,
+      user: userWithoutPassword,
+    };
+  }
+
+  async refreshToken(refreshToken: string) {
+    const tokenHash = this.hashRefreshToken(refreshToken);
+    const storedToken = await this.prismaService.refreshToken.findUnique({
+      where: { tokenHash },
     });
 
-    const { password, ...userWithoutPassword } = user;
+    if (
+      !storedToken ||
+      storedToken.isRevoked ||
+      storedToken.expiresIn <= new Date()
+    ) {
+      throw new UnauthorizedException('Refresh token inválido ou expirado');
+    }
+
+    const tokens = await this.createTokens(storedToken.userId);
+
+    const rotation = await this.prismaService.refreshToken.updateMany({
+      where: {
+        id: storedToken.id,
+        tokenHash,
+        isRevoked: false,
+        expiresIn: { gt: new Date() },
+      },
+      data: {
+        tokenHash: this.hashRefreshToken(tokens.refresh_token),
+        expiresIn: tokens.refresh_token_expires_at,
+        isRevoked: false,
+      },
+    });
+
+    if (rotation.count !== 1) {
+      throw new UnauthorizedException('Refresh token inválido ou expirado');
+    }
+
+    return {
+      access_token: tokens.access_token,
+      refresh_token: tokens.refresh_token,
+    };
+  }
+
+  private async issueTokens(userId: string) {
+    const tokens = await this.createTokens(userId);
+
+    await this.prismaService.refreshToken.upsert({
+      where: { userId },
+      create: {
+        userId,
+        tokenHash: this.hashRefreshToken(tokens.refresh_token),
+        expiresIn: tokens.refresh_token_expires_at,
+      },
+      update: {
+        tokenHash: this.hashRefreshToken(tokens.refresh_token),
+        expiresIn: tokens.refresh_token_expires_at,
+        isRevoked: false,
+      },
+    });
+
+    return tokens;
+  }
+
+  private async createTokens(userId: string) {
+    const refreshToken = randomBytes(48).toString('hex');
+    const refreshTokenExpiresAt = new Date(
+      Date.now() +
+        this.getDurationInMilliseconds('JWT_REFRESH_EXPIRES_IN', '7d'),
+    );
+    const accessToken = await this.jwtService.signAsync({ sub: userId });
 
     return {
       access_token: accessToken,
-      user: userWithoutPassword,
+      refresh_token: refreshToken,
+      refresh_token_expires_at: refreshTokenExpiresAt,
     };
+  }
+
+  private hashRefreshToken(refreshToken: string) {
+    return createHash('sha256').update(refreshToken).digest('hex');
+  }
+
+  private getDurationInMilliseconds(name: string, fallback: string) {
+    const value = this.configService.get<string>(name) ?? fallback;
+    const match = /^(\d+)([smhd])$/.exec(value);
+
+    if (!match) {
+      throw new Error(`${name} must use a duration such as 15m, 1h, or 7d`);
+    }
+
+    const amount = Number(match[1]);
+    const millisecondsByUnit: Record<string, number> = {
+      s: 1000,
+      m: 60 * 1000,
+      h: 60 * 60 * 1000,
+      d: 24 * 60 * 60 * 1000,
+    };
+    const unitMilliseconds = millisecondsByUnit[match[2]];
+
+    return amount * unitMilliseconds;
   }
 
   async findById(id: string) {
@@ -88,19 +191,7 @@ export class UsersService {
       },
 
       omit: {
-        password: true,
-      },
-
-      include: {
-        store: {
-          select: {
-            id: true,
-            name: true,
-            profile_image: true,
-            origin_country: true,
-            address: true,
-          },
-        },
+        password_hash: true,
       },
     });
 
@@ -157,8 +248,15 @@ export class UsersService {
             resource_type: 'auto',
           },
           (error: any, result: any) => {
-            if (error) reject(error);
-            else resolve(result);
+            if (error) {
+              reject(
+                new Error(
+                  error instanceof Error ? error.message : 'Upload failed',
+                ),
+              );
+            } else {
+              resolve(result as { secure_url: string; [key: string]: any });
+            }
           },
         );
 
