@@ -111,6 +111,33 @@ export class JobsService {
     });
   }
 
+  async getJobById(jobId: string) {
+    const job = await this.prisma.job.findUnique({
+      where: { id: jobId },
+      include: {
+        category: true,
+        client: { select: { id: true, first_name: true, email: true } },
+        images: true,
+      },
+    });
+    if (!job) {
+      throw new NotFoundException('Job não encontrado');
+    }
+    return job;
+  }
+  // Job belong of current user
+  async getMyJobs(clientId: string) {
+    return this.prisma.job.findMany({
+      where: { clientId },
+      include: {
+        category: true,
+        client: { select: { id: true, first_name: true, email: true } },
+        images: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
   async uploadImage(jobId: string, userId: string, file: Express.Multer.File) {
     // Buscar o Job
     const job = await this.prisma.job.findUnique({

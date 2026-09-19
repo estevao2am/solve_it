@@ -34,6 +34,11 @@ export class JobsController {
   async findAll() {
     return this.jobsService.findAll();
   }
+  @UseGuards(AuthGuard)
+  @Get('my-jobs')
+  async getMyJobs(@CurrentUser() user: { sub: string }) {
+    return this.jobsService.getMyJobs(user.sub);
+  }
 
   @UseGuards(AuthGuard)
   @Post(':jobId/images')

@@ -5,6 +5,10 @@ export class CreateCategoryDto {
   @IsString()
   name!: string;
 
+  @IsNotEmpty()
+  @IsString()
+  title!: string;
+
   @IsOptional()
   imageUrl!: string;
 }

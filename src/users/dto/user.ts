@@ -1,4 +1,10 @@
-import { IsEmail, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import {
+  IsEmail,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  MinLength,
+} from 'class-validator';
 
 export class CreateUserDto {
   @IsNotEmpty()
@@ -17,19 +23,19 @@ export class CreateUserDto {
   @IsEmail()
   email!: string;
 
-  @IsNotEmpty()
+  @IsOptional()
   @IsString()
   address!: string;
 
-  @IsNotEmpty()
+  @IsOptional()
   @IsString()
   postal_code!: string;
 
-  @IsNotEmpty()
+  @IsOptional()
   @IsString()
   city!: string;
 
-  @IsNotEmpty()
+  @IsOptional()
   @IsString()
   phone!: string;
 
@@ -39,11 +45,11 @@ export class CreateUserDto {
 }
 
 export class UpdateUserDto {
-  @IsNotEmpty()
+  @IsOptional()
   @IsString()
   first_name!: string;
 
-  @IsNotEmpty()
+  @IsOptional()
   @IsString()
   last_name!: string;
 
@@ -51,7 +57,11 @@ export class UpdateUserDto {
   @IsString()
   avatar_url?: string;
 
-  @IsNotEmpty()
+  @IsOptional()
+  @IsString()
+  phone!: string;
+
+  @IsOptional()
   @IsEmail()
   email!: string;
 }
@@ -69,4 +79,13 @@ export class RefreshTokenDto {
   @IsNotEmpty()
   @IsString()
   refresh_token!: string;
+}
+
+export class ChangePasswordDto {
+  @IsString()
+  current_password!: string;
+
+  @IsString()
+  @MinLength(6)
+  new_password!: string;
 }

@@ -6,7 +6,12 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
-import { CreateUserDto, LoginUserDto, UpdateUserDto } from './dto/user';
+import {
+  ChangePasswordDto,
+  CreateUserDto,
+  LoginUserDto,
+  UpdateUserDto,
+} from './dto/user';
 import { PrismaService } from '../prisma/prisma.service';
 import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
@@ -279,5 +284,163 @@ export class UsersService {
         error instanceof Error ? error.message : 'Unknown error';
       throw new BadRequestException(`Failed to upload avatar: ${errorMessage}`);
     }
+  }
+
+  async removeAvatar(id: string) {
+    const user = await this.prismaService.user.findUnique({
+      where: {
+        id,
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    if (!user.avatar_url) {
+      throw new BadRequestException('User does not have an avatar');
+    }
+
+    try {
+      // Extrair o public_id a partir do URL do Cloudinary
+      const uploadIndex = user.avatar_url.indexOf('/upload/');
+
+      if (uploadIndex !== -1) {
+        let publicId = user.avatar_url.substring(
+          uploadIndex + '/upload/'.length,
+        );
+
+        // Remover a versão do Cloudinary, por exemplo:
+        // v1234567890/user_avatars/avatar.jpg
+        publicId = publicId.replace(/^v\d+\//, '');
+
+        // Remover extensão
+        publicId = publicId.replace(/\.[^/.]+$/, '');
+
+        // Apagar do Cloudinary
+        await cloudinary.uploader.destroy(publicId, {
+          resource_type: 'image',
+        });
+      }
+
+      // Limpar avatar na BD
+      const updatedUser = await this.prismaService.user.update({
+        where: {
+          id,
+        },
+        data: {
+          avatar_url: null,
+        },
+      });
+
+      return updatedUser;
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
+
+      throw new BadRequestException(`Failed to remove avatar: ${errorMessage}`);
+    }
+  }
+
+  async updateUserData(id: string, data: UpdateUserDto) {
+    const user = await this.prismaService.user.findUnique({
+      where: {
+        id,
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    // Se estiver a alterar o email, verificar se já pertence a outro utilizador
+    if (data.email && data.email !== user.email) {
+      const emailAlreadyExists = await this.prismaService.user.findUnique({
+        where: {
+          email: data.email,
+        },
+      });
+
+      if (emailAlreadyExists && emailAlreadyExists.id !== id) {
+        throw new BadRequestException(
+          'Este email já está associado a outro utilizador',
+        );
+      }
+    }
+
+    const updatedUser = await this.prismaService.user.update({
+      where: {
+        id,
+      },
+      data: {
+        ...(data.first_name !== undefined && {
+          first_name: data.first_name,
+        }),
+
+        ...(data.last_name !== undefined && {
+          last_name: data.last_name,
+        }),
+
+        ...(data.phone !== undefined && {
+          phone: data.phone,
+        }),
+
+        ...(data.email !== undefined && {
+          email: data.email,
+        }),
+      },
+    });
+
+    // Nunca devolver a password
+    const { password_hash, ...userWithoutPassword } = updatedUser;
+
+    return userWithoutPassword;
+  }
+
+  async changePassword(id: string, data: ChangePasswordDto) {
+    const user = await this.prismaService.user.findUnique({
+      where: {
+        id,
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException('Utilizador não encontrado');
+    }
+
+    const passwordIsValid = await bcrypt.compare(
+      data.current_password,
+      user.password_hash,
+    );
+
+    if (!passwordIsValid) {
+      throw new UnauthorizedException('A palavra-passe atual está incorreta');
+    }
+
+    const samePassword = await bcrypt.compare(
+      data.new_password,
+      user.password_hash,
+    );
+
+    if (samePassword) {
+      throw new BadRequestException(
+        'A nova palavra-passe deve ser diferente da atual',
+      );
+    }
+
+    const newPasswordHash = await bcrypt.hash(data.new_password, 10);
+
+    await this.prismaService.user.update({
+      where: {
+        id,
+      },
+      data: {
+        password_hash: newPasswordHash,
+      },
+    });
+
+    return {
+      message: 'Palavra-passe alterada com sucesso',
+    };
   }
 }

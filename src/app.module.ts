@@ -10,6 +10,8 @@ import { CategoryModule } from './category/category.module';
 import { JobsService } from './job/job.service';
 import { JobModule } from './job/job.module';
 import { LocationModule } from './location/location.module';
+import { ProfessionalModule } from './professional/professional.module';
+import { NotificationModule } from './notification/notification.module';
 
 @Module({
   imports: [
@@ -26,6 +28,10 @@ import { LocationModule } from './location/location.module';
     JobModule,
 
     LocationModule,
+
+    ProfessionalModule,
+
+    NotificationModule,
   ],
   controllers: [AppController],
   providers: [AppService, JobsService],

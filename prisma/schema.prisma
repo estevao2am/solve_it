@@ -7,11 +7,13 @@ datasource db {
 }
 
 // ==============================
-// USER
+// ENUMS
 // ==============================
+
 enum Role {
   USER
   ADMIN
+  PROFESSIONAL
 }
 
 enum JobStatus {
@@ -21,9 +23,30 @@ enum JobStatus {
   CANCELLED
 }
 
-model User {
-  id String @id @default(uuid())
+enum ProfessionalType {
+  INDEPENDENT
+  COMPANY
+  OTHER
+}
 
+enum DocumentType {
+  NIF_PROOF
+  NISS_PROOF
+  PAYMENT_PROOF
+}
+
+enum ProfessionalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+// ==============================
+// USER
+// ==============================
+
+model User {
+  id            String  @id @default(uuid())
   first_name    String
   last_name     String?
   email         String  @unique
@@ -32,20 +55,19 @@ model User {
   address       String?
   phone         String?
   postal_code   String?
-
-  avatar_url String?
-  role       Role    @default(USER)
+  avatar_url    String?
+  role          Role    @default(USER)
 
   refresh_token RefreshToken?
-  // Perfil opcional para quando o utilizador decide ser profissional
   professional  ProfessionalProfile?
 
-  created_at      DateTime   @default(now())
-  updated_at      DateTime   @updatedAt
-  jobs            Job[]      @relation("ClientJobs")
-  reviewsGiven    Review[]   @relation("ReviewsGiven")
-  reviewsReceived Review[]   @relation("ReviewsReceived")
-  proposals       Proposal[] @relation("ProfessionalProposals")
+  created_at      DateTime       @default(now())
+  updated_at      DateTime       @updatedAt
+  jobs            Job[]          @relation("ClientJobs")
+  reviewsGiven    Review[]       @relation("ReviewsGiven")
+  reviewsReceived Review[]       @relation("ReviewsReceived")
+  proposals       Proposal[]     @relation("ProfessionalProposals")
+  notifications   Notification[]
 
   @@map("users")
 }
@@ -70,7 +92,7 @@ model RefreshToken {
 }
 
 // ==============================
-// CATEGORY
+// PROFESSIONAL PROFILE
 // ==============================
 
 model ProfessionalProfile {
@@ -78,24 +100,85 @@ model ProfessionalProfile {
   userId String @unique
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  bio         String?
-  hourlyRate  Decimal?
-  isAvailable Boolean    @default(true)
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
-  categories  Category[] // Relação direta implícita
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  // Atividade Profissional
+  bio             String?
+  experienceYears Int?
+  isAvailable     Boolean @default(true)
+
+  // Estado da Verificação
+  status     ProfessionalStatus @default(PENDING)
+  isVerified Boolean            @default(false)
+
+  // Dados Fiscais
+  fiscalType ProfessionalType
+  nif        String
+  niss       String?
+
+  // Dados de Pagamento
+  accountHolder String
+  iban          String
+
+  // Documentos
+  documents ProfessionalDocument[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([categoryId])
+  @@index([status])
+  @@index([nif])
+  @@map("professional_profiles")
 }
+
+// ==============================
+// PROFESSIONAL DOCUMENT
+// ==============================
+
+model ProfessionalDocument {
+  id String @id @default(uuid())
+
+  professionalProfileId String
+  professionalProfile   ProfessionalProfile @relation(fields: [professionalProfileId], references: [id], onDelete: Cascade)
+
+  type       DocumentType
+  name       String
+  uri        String
+  mimeType   String?
+  size       Int?
+  isVerified Boolean      @default(false)
+  fileHash   String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([professionalProfileId, fileHash])
+  @@unique([professionalProfileId, type])
+  @@index([professionalProfileId])
+  @@index([type])
+  @@index([fileHash])
+  @@map("professional_documents")
+}
+
+// ==============================
+// CATEGORY
+// ==============================
 
 model Category {
   id            String                @id @default(uuid())
   name          String                @unique
+  title         String?
   imageUrl      String?
   jobs          Job[]
-  professionals ProfessionalProfile[] // Relação direta implícita
+  professionals ProfessionalProfile[]
+
+  @@map("categories")
 }
 
 // ==============================
-// ENUM
+// JOB & RELATED
 // ==============================
 
 model Job {
@@ -103,9 +186,6 @@ model Job {
   title            String
   description      String
   status           JobStatus @default(OPEN)
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
-  // Local onde o serviço será realizado
   locationVerified Boolean   @default(false)
 
   address     String?
@@ -115,51 +195,83 @@ model Job {
   latitude  Decimal? @db.Decimal(10, 7)
   longitude Decimal? @db.Decimal(10, 7)
 
-  clientId String
-  client   User   @relation("ClientJobs", fields: [clientId], references: [id])
-
+  clientId   String
+  client     User     @relation("ClientJobs", fields: [clientId], references: [id], onDelete: Cascade)
   categoryId String
-  category   Category @relation(fields: [categoryId], references: [id])
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
 
   images    JobImage[]
   proposals Proposal[]
   reviews   Review[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("jobs")
 }
 
 model JobImage {
   id        String   @id @default(uuid())
   url       String
+  jobId     String
+  job       Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
 
-  jobId String
-  job   Job    @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  @@map("job_images")
 }
 
 model Review {
   id        String   @id @default(uuid())
-  rating    Int // Ex: 1 a 5
+  rating    Int
   comment   String?
+  jobId     String
+  job       Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User     @relation("ReviewsGiven", fields: [authorId], references: [id], onDelete: Cascade)
+  targetId  String
+  target    User     @relation("ReviewsReceived", fields: [targetId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
 
-  jobId String
-  job   Job    @relation(fields: [jobId], references: [id])
-
-  authorId String
-  author   User   @relation("ReviewsGiven", fields: [authorId], references: [id])
-
-  targetId String
-  target   User   @relation("ReviewsReceived", fields: [targetId], references: [id])
+  @@map("reviews")
 }
 
 model Proposal {
-  id          String   @id @default(uuid())
-  price       Decimal
-  coverLetter String?
-  createdAt   DateTime @default(now())
-
-  jobId String
-  job   Job    @relation(fields: [jobId], references: [id], onDelete: Cascade)
-
+  id             String   @id @default(uuid())
+  price          Decimal  @db.Decimal(10, 2)
+  coverLetter    String?
+  jobId          String
+  job            Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
   professionalId String
-  professional   User   @relation("ProfessionalProposals", fields: [professionalId], references: [id])
+  professional   User     @relation("ProfessionalProposals", fields: [professionalId], references: [id], onDelete: Cascade)
+  createdAt      DateTime @default(now())
+
+  @@map("proposals")
+}
+
+enum NotificationType {
+  ACCOUNT_CREATED
+  ACCOUNT_APPROVED
+  ACCOUNT_REJECTED
+  SYSTEM
+}
+
+model Notification {
+  id String @id @default(uuid())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type    NotificationType
+  title   String
+  message String
+
+  isRead Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([userId, isRead])
+  @@index([createdAt])
+  @@map("notifications")
 }
