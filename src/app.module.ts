@@ -13,6 +13,7 @@ import { LocationModule } from './location/location.module';
 import { ProfessionalModule } from './professional/professional.module';
 import { NotificationModule } from './notification/notification.module';
 import { ProposalModule } from './proposal/proposal.module';
+import { PortfolioModule } from './portfolio/portfolio.module';
 
 @Module({
   imports: [
@@ -35,6 +36,8 @@ import { ProposalModule } from './proposal/proposal.module';
     NotificationModule,
 
     ProposalModule,
+
+    PortfolioModule,
   ],
   controllers: [AppController],
   providers: [AppService, JobsService],
