@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -6,8 +7,11 @@ import {
   Param,
   Patch,
   Post,
+  UploadedFile,
+  UseInterceptors,
   UseGuards,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 
 import { PortfolioItem } from '@prisma/client';
 
@@ -17,6 +21,7 @@ import { CurrentUser } from 'src/users/decorator/current-user.decorator';
 import { CreatePortfolioItemDto } from './DTO/create-portfolio-dto';
 import { UpdatePortfolioItemDto } from './DTO/update-portfolio-item.dto';
 import { PortfolioService } from './portfolio.service';
+import { multerConfig } from 'src/config/multer';
 
 @UseGuards(AuthGuard)
 @Controller('portfolio')
@@ -59,6 +64,32 @@ export class PortfolioController {
     professionalProfileId: string,
   ): Promise<PortfolioItem[]> {
     return this.portfolioService.findByProfessionalId(professionalProfileId);
+  }
+
+  @Post(':portfolioItemId/images')
+  @UseInterceptors(FileInterceptor('file', multerConfig))
+  addImage(
+    @Param('portfolioItemId') portfolioItemId: string,
+    @CurrentUser() user: { sub: string },
+    @UploadedFile() file?: Express.Multer.File,
+  ) {
+    if (!file) {
+      throw new BadRequestException('É necessário enviar uma imagem');
+    }
+
+    if (!file.mimetype.startsWith('image/')) {
+      throw new BadRequestException('O ficheiro enviado deve ser uma imagem');
+    }
+
+    return this.portfolioService.addImage(portfolioItemId, user.sub, file);
+  }
+
+  @Delete('images/:imageId')
+  removeImage(
+    @Param('imageId') imageId: string,
+    @CurrentUser() user: { sub: string },
+  ): Promise<{ message: string }> {
+    return this.portfolioService.removeImage(imageId, user.sub);
   }
 
   // ========================================

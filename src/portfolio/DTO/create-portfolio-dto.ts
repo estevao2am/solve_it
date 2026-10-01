@@ -1,5 +1,5 @@
 // dto/create-portfolio-item.dto.ts
-import { IsNotEmpty, IsOptional, IsString, IsUrl } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
 export class CreatePortfolioItemDto {
   @IsString()
@@ -9,9 +9,4 @@ export class CreatePortfolioItemDto {
   @IsString()
   @IsOptional()
   description?: string;
-
-  @IsString()
-  @IsNotEmpty({ message: 'A URL da imagem é obrigatória' })
-  @IsUrl({}, { message: 'Informa uma URL válida para a imagem' })
-  imageUrl!: string;
 }

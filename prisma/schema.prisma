@@ -297,14 +297,31 @@ model PortfolioItem {
   id          String  @id @default(uuid())
   title       String
   description String?
-  imageUrl    String
 
   professionalProfileId String
-  professionalProfile   ProfessionalProfile @relation(fields: [professionalProfileId], references: [id], onDelete: Cascade)
+
+  professionalProfile ProfessionalProfile @relation(fields: [professionalProfileId], references: [id], onDelete: Cascade)
+
+  images PortfolioImage[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([professionalProfileId])
   @@map("portfolio_items")
+}
+
+model PortfolioImage {
+  id String @id @default(uuid())
+
+  url String
+
+  portfolioItemId String
+
+  portfolioItem PortfolioItem @relation(fields: [portfolioItemId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([portfolioItemId])
+  @@map("portfolio_images")
 }
