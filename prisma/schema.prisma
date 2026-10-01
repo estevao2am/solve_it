@@ -17,6 +17,7 @@ enum Role {
 }
 
 enum JobStatus {
+  PENDING
   OPEN
   IN_PROGRESS
   COMPLETED
@@ -235,16 +236,31 @@ model Review {
   @@map("reviews")
 }
 
-model Proposal {
-  id             String   @id @default(uuid())
-  price          Decimal  @db.Decimal(10, 2)
-  coverLetter    String?
-  jobId          String
-  job            Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
-  professionalId String
-  professional   User     @relation("ProfessionalProposals", fields: [professionalId], references: [id], onDelete: Cascade)
-  createdAt      DateTime @default(now())
+enum ProposalStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
 
+model Proposal {
+  id          String  @id @default(uuid())
+  price       Decimal @db.Decimal(10, 2)
+  coverLetter String?
+
+  status ProposalStatus @default(PENDING)
+
+  jobId String
+  job   Job    @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  professionalId String
+  professional   User   @relation("ProfessionalProposals", fields: [professionalId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([jobId, professionalId])
+  @@index([jobId])
+  @@index([professionalId])
+  @@index([status])
   @@map("proposals")
 }
 

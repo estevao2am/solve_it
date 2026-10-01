@@ -4,18 +4,18 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+
 import { CreateJobDto } from './dto/create-job.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
 import cloudinary from 'src/config/cloudinary ';
-import { LocationService } from 'src/location/location.service';
 
 @Injectable()
 export class JobsService {
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly locationService: LocationService,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
+  // --------------------------------
+  // Criar Job
+  // --------------------------------
   async create(clientId: string, dto: CreateJobDto) {
     // --------------------------------
     // 1. Validar categoria
@@ -31,17 +31,10 @@ export class JobsService {
     }
 
     // --------------------------------
-    // 2. Validar e obter localização
+    // 2. Criar Job
     // --------------------------------
-    const location = await this.locationService.resolveLocationAndGeocode(
-      dto.address,
-      dto.city,
-      dto.postal_code,
-    );
-
-    // --------------------------------
-    // 3. Criar Job
-    // --------------------------------
+    // A localização é inserida manualmente
+    // pelo utilizador.
     const job = await this.prisma.job.create({
       data: {
         title: dto.title,
@@ -51,20 +44,11 @@ export class JobsService {
         categoryId: dto.categoryId,
 
         // --------------------------------
-        // Morada
+        // Morada inserida manualmente
         // --------------------------------
         address: dto.address,
-        city: location.resolvedCity,
         postal_code: dto.postal_code,
-
-        // --------------------------------
-        // Coordenadas obtidas através do
-        // Nominatim / OpenStreetMap
-        // --------------------------------
-        latitude: location.latitude,
-        longitude: location.longitude,
-
-        locationVerified: true,
+        city: dto.city,
       },
 
       include: {
@@ -85,6 +69,9 @@ export class JobsService {
     return job;
   }
 
+  // --------------------------------
+  // Listar todos os Jobs
+  // --------------------------------
   async findAll() {
     return this.prisma.job.findMany({
       where: {
@@ -107,43 +94,93 @@ export class JobsService {
         },
 
         images: true,
+        proposals: {
+          select: {
+            professional: {
+              select: {
+                first_name: true,
+                last_name: true,
+              },
+            },
+            price: true,
+          },
+        },
       },
     });
   }
 
+  // --------------------------------
+  // Obter Job por ID
+  // --------------------------------
   async getJobById(jobId: string) {
-    const job = await this.prisma.job.findUnique({
-      where: { id: jobId },
-      include: {
-        category: true,
-        client: { select: { id: true, first_name: true, email: true } },
-        images: true,
-      },
-    });
-    if (!job) {
-      throw new NotFoundException('Job não encontrado');
-    }
-    return job;
-  }
-  // Job belong of current user
-  async getMyJobs(clientId: string) {
-    return this.prisma.job.findMany({
-      where: { clientId },
-      include: {
-        category: true,
-        client: { select: { id: true, first_name: true, email: true } },
-        images: true,
-      },
-      orderBy: { createdAt: 'desc' },
-    });
-  }
-
-  async uploadImage(jobId: string, userId: string, file: Express.Multer.File) {
-    // Buscar o Job
     const job = await this.prisma.job.findUnique({
       where: {
         id: jobId,
       },
+
+      include: {
+        category: true,
+
+        client: {
+          select: {
+            id: true,
+            first_name: true,
+            email: true,
+          },
+        },
+
+        images: true,
+      },
+    });
+
+    if (!job) {
+      throw new NotFoundException('Job não encontrado');
+    }
+
+    return job;
+  }
+
+  // --------------------------------
+  // Jobs do utilizador autenticado
+  // --------------------------------
+  async getMyJobs(clientId: string) {
+    return this.prisma.job.findMany({
+      where: {
+        clientId,
+      },
+
+      include: {
+        category: true,
+
+        client: {
+          select: {
+            id: true,
+            first_name: true,
+            email: true,
+          },
+        },
+
+        images: true,
+      },
+
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+  }
+
+  // --------------------------------
+  // Upload de imagem
+  // --------------------------------
+  async uploadImage(jobId: string, userId: string, file: Express.Multer.File) {
+    // --------------------------------
+    // 1. Buscar o Job
+    // --------------------------------
+    const job = await this.prisma.job.findUnique({
+      where: {
+        id: jobId,
+      },
+
       include: {
         _count: {
           select: {
@@ -153,30 +190,39 @@ export class JobsService {
       },
     });
 
-    // Job não existe
+    // --------------------------------
+    // 2. Verificar se o Job existe
+    // --------------------------------
     if (!job) {
       throw new NotFoundException('Trabalho não encontrado');
     }
 
-    // Verificar se o utilizador autenticado é o dono
+    // --------------------------------
+    // 3. Verificar proprietário
+    // --------------------------------
     if (job.clientId !== userId) {
       throw new ForbiddenException(
         'Não tens permissão para adicionar imagens a este trabalho',
       );
     }
 
-    // Limite de 5 imagens
+    // --------------------------------
+    // 4. Limite de imagens
+    // --------------------------------
     if (job._count.images >= 5) {
       throw new BadRequestException('Um trabalho pode ter no máximo 5 imagens');
     }
 
-    // Upload para Cloudinary
+    // --------------------------------
+    // 5. Upload para Cloudinary
+    // --------------------------------
     const result = await new Promise<any>((resolve, reject) => {
       const uploadStream = cloudinary.uploader.upload_stream(
         {
           folder: 'jobs',
           resource_type: 'image',
         },
+
         (error, result) => {
           if (error) {
             reject(error);
@@ -189,7 +235,9 @@ export class JobsService {
       uploadStream.end(file.buffer);
     });
 
-    // Guardar imagem associada ao Job
+    // --------------------------------
+    // 6. Guardar imagem na BD
+    // --------------------------------
     const jobImage = await this.prisma.jobImage.create({
       data: {
         url: result.secure_url,

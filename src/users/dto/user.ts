@@ -55,6 +55,18 @@ export class UpdateUserDto {
 
   @IsOptional()
   @IsString()
+  address!: string;
+
+  @IsOptional()
+  @IsString()
+  postal_code!: string;
+
+  @IsOptional()
+  @IsString()
+  city!: string;
+
+  @IsOptional()
+  @IsString()
   avatar_url?: string;
 
   @IsOptional()

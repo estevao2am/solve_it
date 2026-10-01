@@ -388,6 +388,18 @@ export class UsersService {
         ...(data.email !== undefined && {
           email: data.email,
         }),
+
+        ...(data.address !== undefined && {
+          address: data.address,
+        }),
+
+        ...(data.postal_code !== undefined && {
+          postal_code: data.postal_code,
+        }),
+
+        ...(data.city !== undefined && {
+          city: data.city,
+        }),
       },
     });
 
