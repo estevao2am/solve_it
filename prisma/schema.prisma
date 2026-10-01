@@ -17,8 +17,8 @@ enum Role {
 }
 
 enum JobStatus {
-  PENDING
   OPEN
+  PENDING
   IN_PROGRESS
   COMPLETED
   CANCELLED
@@ -125,8 +125,9 @@ model ProfessionalProfile {
   // Documentos
   documents ProfessionalDocument[]
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  portfolioItems PortfolioItem[]
 
   @@index([categoryId])
   @@index([status])
@@ -290,4 +291,20 @@ model Notification {
   @@index([userId, isRead])
   @@index([createdAt])
   @@map("notifications")
+}
+
+model PortfolioItem {
+  id          String  @id @default(uuid())
+  title       String
+  description String?
+  imageUrl    String
+
+  professionalProfileId String
+  professionalProfile   ProfessionalProfile @relation(fields: [professionalProfileId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([professionalProfileId])
+  @@map("portfolio_items")
 }

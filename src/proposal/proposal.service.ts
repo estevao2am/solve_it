@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -12,18 +13,21 @@ import { CreateProposalDto } from './dto/create-proposal.dto';
 export class ProposalsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  // --------------------------------
-  // Criar Proposal
-  // --------------------------------
+  // =========================================================
+  // CRIAR PROPOSTA
+  // =========================================================
 
   async create(professionalId: string, dto: CreateProposalDto) {
-    // --------------------------------
-    // 1. Verificar se o Job existe
-    // --------------------------------
-
+    // 1. VALIDAR SE O JOB EXISTE
     const job = await this.prisma.job.findUnique({
       where: {
         id: dto.jobId,
+      },
+      select: {
+        id: true,
+        clientId: true,
+        categoryId: true,
+        status: true,
       },
     });
 
@@ -31,75 +35,157 @@ export class ProposalsService {
       throw new NotFoundException('Trabalho não encontrado');
     }
 
-    // --------------------------------
-    // 2. Verificar se o Job está aberto
-    // --------------------------------
-
-    if (job.status !== 'OPEN') {
-      throw new BadRequestException(
-        'Este trabalho não está disponível para propostas',
-      );
-    }
-
-    // --------------------------------
-    // 3. Impedir candidatura ao próprio Job
-    // --------------------------------
-
+    // 2. IMPEDIR PROPOSTA NO PRÓPRIO JOB
     if (job.clientId === professionalId) {
       throw new ForbiddenException(
         'Não podes enviar uma proposta para o teu próprio trabalho',
       );
     }
 
-    // --------------------------------
-    // 4. Verificar proposta duplicada
-    // --------------------------------
-
-    const existingProposal = await this.prisma.proposal.findFirst({
-      where: {
-        jobId: dto.jobId,
-        professionalId,
-      },
-    });
-
-    if (existingProposal) {
+    // 3. VERIFICAR SE O JOB ESTÁ ABERTO
+    if (job.status !== 'OPEN') {
       throw new BadRequestException(
-        'Já enviaste uma proposta para este trabalho',
+        'Este trabalho não está disponível para propostas',
       );
     }
 
-    // --------------------------------
-    // 5. Criar Proposal
-    // --------------------------------
-
-    const proposal = await this.prisma.proposal.create({
-      data: {
-        price: dto.price,
-        coverLetter: dto.coverLetter,
-        jobId: dto.jobId,
-        professionalId,
+    // 4. VERIFICAR UTILIZADOR E OBTER PERFIL PROFISSIONAL
+    const user = await this.prisma.user.findUnique({
+      where: {
+        id: professionalId,
       },
-      include: {
-        job: true,
+      select: {
+        id: true,
         professional: {
           select: {
             id: true,
-            first_name: true,
-            last_name: true,
-            email: true,
+            categoryId: true,
+            status: true,
+            isVerified: true,
+            isAvailable: true,
           },
         },
       },
     });
 
-    return proposal;
+    if (!user) {
+      throw new NotFoundException('Utilizador não encontrado');
+    }
+
+    // 5. VERIFICAR SE POSSUI PERFIL PROFISSIONAL
+    if (!user.professional) {
+      throw new ForbiddenException('Não tens um perfil profissional associado');
+    }
+
+    const professionalProfile = user.professional;
+
+    // 6. VERIFICAR SE O PERFIL ESTÁ APROVADO
+    if (professionalProfile.status !== 'APPROVED') {
+      throw new ForbiddenException(
+        'O teu perfil profissional ainda não foi aprovado',
+      );
+    }
+
+    // 7. VERIFICAR SE ESTÁ VERIFICADO
+    if (!professionalProfile.isVerified) {
+      throw new ForbiddenException(
+        'O teu perfil profissional ainda não está verificado',
+      );
+    }
+
+    // 8. VERIFICAR DISPONIBILIDADE
+    if (!professionalProfile.isAvailable) {
+      throw new BadRequestException(
+        'O teu perfil profissional está atualmente indisponível',
+      );
+    }
+
+    // 9. VALIDAR CATEGORIA
+    if (professionalProfile.categoryId !== job.categoryId) {
+      throw new BadRequestException(
+        'A categoria do teu perfil profissional não corresponde à categoria deste trabalho',
+      );
+    }
+
+    // 10. VALIDAR PREÇO
+    const price = Number(dto.price);
+
+    if (!Number.isFinite(price) || price <= 0) {
+      throw new BadRequestException(
+        'O preço da proposta deve ser superior a zero',
+      );
+    }
+
+    // 11. VERIFICAR PROPOSTA DUPLICADA
+    const existingProposal = await this.prisma.proposal.findUnique({
+      where: {
+        jobId_professionalId: {
+          jobId: job.id,
+          professionalId,
+        },
+      },
+      select: {
+        id: true,
+        status: true,
+      },
+    });
+
+    if (existingProposal) {
+      throw new ConflictException(
+        'Já enviaste uma proposta para este trabalho',
+      );
+    }
+
+    // 12. CRIAR PROPOSTA
+    try {
+      return await this.prisma.proposal.create({
+        data: {
+          jobId: job.id,
+          professionalId,
+          price: dto.price,
+          coverLetter: dto.coverLetter,
+        },
+        include: {
+          job: true,
+          professional: {
+            select: {
+              id: true,
+              first_name: true,
+              last_name: true,
+              email: true,
+            },
+          },
+        },
+      });
+    } catch (error: any) {
+      if (error?.code === 'P2002') {
+        throw new ConflictException(
+          'Já enviaste uma proposta para este trabalho',
+        );
+      }
+
+      throw error;
+    }
   }
 
-  // --------------------------------
-  // Listar propostas de um Job
-  // --------------------------------
+  // =========================================================
+  // LISTAR PROPOSTAS DE UM JOB
+  // =========================================================
 
   async findByJob(jobId: string) {
+    const job = await this.prisma.job.findUnique({
+      where: {
+        id: jobId,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!job) {
+      throw new NotFoundException('Trabalho não encontrado');
+    }
+
     return this.prisma.proposal.findMany({
       where: {
         jobId,
@@ -111,6 +197,16 @@ export class ProposalsService {
             first_name: true,
             last_name: true,
             email: true,
+            professional: {
+              select: {
+                bio: true,
+                experienceYears: true,
+                isAvailable: true,
+                status: true,
+                isVerified: true,
+                categoryId: true,
+              },
+            },
           },
         },
       },
@@ -120,11 +216,35 @@ export class ProposalsService {
     });
   }
 
-  // --------------------------------
-  // Propostas do profissional
-  // --------------------------------
+  // =========================================================
+  // PROPOSTAS DO PROFISSIONAL
+  // =========================================================
 
   async findMyProposals(professionalId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: {
+        id: professionalId,
+      },
+      select: {
+        id: true,
+        professional: {
+          select: {
+            id: true,
+          },
+        },
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException('Utilizador não encontrado');
+    }
+
+    if (!user.professional) {
+      throw new ForbiddenException(
+        'Apenas profissionais podem consultar as suas propostas',
+      );
+    }
+
     return this.prisma.proposal.findMany({
       where: {
         professionalId,
@@ -143,9 +263,9 @@ export class ProposalsService {
     });
   }
 
-  // --------------------------------
-  // Obter Proposal por ID
-  // --------------------------------
+  // =========================================================
+  // OBTER PROPOSTA
+  // =========================================================
 
   async findOne(proposalId: string) {
     const proposal = await this.prisma.proposal.findUnique({
@@ -160,6 +280,16 @@ export class ProposalsService {
             first_name: true,
             last_name: true,
             email: true,
+            professional: {
+              select: {
+                bio: true,
+                experienceYears: true,
+                categoryId: true,
+                status: true,
+                isVerified: true,
+                isAvailable: true,
+              },
+            },
           },
         },
       },
@@ -172,63 +302,74 @@ export class ProposalsService {
     return proposal;
   }
 
-  // --------------------------------
-  // Aceitar Proposal
-  // --------------------------------
+  // =========================================================
+  // ACEITAR PROPOSTA
+  // =========================================================
 
   async accept(proposalId: string, clientId: string) {
-    // --------------------------------
-    // 1. Procurar a Proposal
-    // --------------------------------
-
-    const proposal = await this.prisma.proposal.findUnique({
-      where: {
-        id: proposalId,
-      },
-      include: {
-        job: true,
-      },
-    });
-
-    if (!proposal) {
-      throw new NotFoundException('Proposta não encontrada');
-    }
-
-    // --------------------------------
-    // 2. Verificar se o utilizador é
-    //    o dono do Job
-    // --------------------------------
-
-    if (proposal.job.clientId !== clientId) {
-      throw new ForbiddenException(
-        'Não tens permissão para aceitar esta proposta',
-      );
-    }
-
-    // --------------------------------
-    // 3. Verificar se o Job está aberto
-    // --------------------------------
-
-    if (proposal.job.status !== 'OPEN') {
-      throw new BadRequestException('Este trabalho já não está disponível');
-    }
-
-    // --------------------------------
-    // 4. Verificar se a Proposal está pendente
-    // --------------------------------
-
-    if (proposal.status !== 'PENDING') {
-      throw new BadRequestException('Esta proposta já foi processada');
-    }
-
-    // --------------------------------
-    // 5. Aceitar Proposal,
-    //    rejeitar restantes e colocar
-    //    Job em IN_PROGRESS
-    // --------------------------------
-
     return this.prisma.$transaction(async (tx) => {
-      // Aceitar a proposta escolhida
+      const proposal = await tx.proposal.findUnique({
+        where: {
+          id: proposalId,
+        },
+        include: {
+          job: true,
+          professional: {
+            select: {
+              id: true,
+              professional: {
+                select: {
+                  id: true,
+                  status: true,
+                  isVerified: true,
+                  isAvailable: true,
+                  categoryId: true,
+                },
+              },
+            },
+          },
+        },
+      });
+
+      if (!proposal) {
+        throw new NotFoundException('Proposta não encontrada');
+      }
+
+      if (proposal.job.clientId !== clientId) {
+        throw new ForbiddenException(
+          'Não tens permissão para aceitar esta proposta',
+        );
+      }
+
+      if (proposal.status !== 'PENDING') {
+        throw new BadRequestException('Esta proposta já foi processada');
+      }
+
+      if (proposal.job.status !== 'OPEN') {
+        throw new BadRequestException('Este trabalho já não está disponível');
+      }
+
+      // Validar existência e estado do perfil profissional
+      if (!proposal.professional.professional) {
+        throw new BadRequestException(
+          'O profissional desta proposta já não possui um perfil profissional',
+        );
+      }
+
+      const professionalProfile = proposal.professional.professional;
+
+      if (professionalProfile.status !== 'APPROVED') {
+        throw new BadRequestException(
+          'O perfil profissional já não está aprovado',
+        );
+      }
+
+      if (!professionalProfile.isVerified) {
+        throw new BadRequestException(
+          'O perfil profissional já não está verificado',
+        );
+      }
+
       const acceptedProposal = await tx.proposal.update({
         where: {
           id: proposalId,
@@ -249,7 +390,6 @@ export class ProposalsService {
         },
       });
 
-      // Rejeitar todas as outras propostas
       await tx.proposal.updateMany({
         where: {
           jobId: proposal.jobId,
@@ -263,29 +403,29 @@ export class ProposalsService {
         },
       });
 
-      // Alterar o estado do Job
-      await tx.job.update({
+      const updatedJob = await tx.job.updateMany({
         where: {
           id: proposal.jobId,
+          status: 'OPEN',
         },
         data: {
           status: 'IN_PROGRESS',
         },
       });
 
+      if (updatedJob.count !== 1) {
+        throw new ConflictException('Este trabalho já não está disponível');
+      }
+
       return acceptedProposal;
     });
   }
 
-  // --------------------------------
-  // Recusar Proposal
-  // --------------------------------
+  // =========================================================
+  // REJEITAR PROPOSTA
+  // =========================================================
 
   async reject(proposalId: string, clientId: string) {
-    // --------------------------------
-    // 1. Procurar a Proposal
-    // --------------------------------
-
     const proposal = await this.prisma.proposal.findUnique({
       where: {
         id: proposalId,
@@ -299,36 +439,21 @@ export class ProposalsService {
       throw new NotFoundException('Proposta não encontrada');
     }
 
-    // --------------------------------
-    // 2. Verificar se o utilizador é
-    //    o dono do Job
-    // --------------------------------
-
     if (proposal.job.clientId !== clientId) {
       throw new ForbiddenException(
         'Não tens permissão para recusar esta proposta',
       );
     }
 
-    // --------------------------------
-    // 3. Verificar se o Job está aberto
-    // --------------------------------
-
     if (proposal.job.status !== 'OPEN') {
-      throw new BadRequestException('Este trabalho já não está disponível');
+      throw new BadRequestException(
+        'Este trabalho já não está disponível para gerir propostas',
+      );
     }
-
-    // --------------------------------
-    // 4. Verificar se a Proposal está pendente
-    // --------------------------------
 
     if (proposal.status !== 'PENDING') {
       throw new BadRequestException('Esta proposta já foi processada');
     }
-
-    // --------------------------------
-    // 5. Recusar Proposal
-    // --------------------------------
 
     return this.prisma.proposal.update({
       where: {

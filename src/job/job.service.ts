@@ -70,13 +70,17 @@ export class JobsService {
   }
 
   // --------------------------------
+  // TODO: Listar todos os Jobs com o status aberto, para os profissionais,
+
+  // --------------------------------
   // Listar todos os Jobs
   // --------------------------------
+
   async findAll() {
     return this.prisma.job.findMany({
-      where: {
-        status: 'OPEN',
-      },
+      // where: {
+      //   status: 'OPEN',
+      // },
 
       orderBy: {
         createdAt: 'desc',
@@ -248,3 +252,5 @@ export class JobsService {
     return jobImage;
   }
 }
+
+// TODO:
