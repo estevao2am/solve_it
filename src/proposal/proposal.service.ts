@@ -7,11 +7,15 @@ import {
 } from '@nestjs/common';
 
 import { PrismaService } from 'src/prisma/prisma.service';
+import { NotificationsService } from 'src/notification/notification.service';
 import { CreateProposalDto } from './dto/create-proposal.dto';
 
 @Injectable()
 export class ProposalsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notificationsService: NotificationsService,
+  ) {}
 
   // =========================================================
   // CRIAR PROPOSTA
@@ -390,31 +394,64 @@ export class ProposalsService {
         },
       });
 
-      await tx.proposal.updateMany({
+      // Só a proposta aceite fica associada ao trabalho: as restantes
+      // são eliminadas e os respetivos profissionais notificados.
+      const otherProposals = await tx.proposal.findMany({
         where: {
           jobId: proposal.jobId,
           id: {
             not: proposalId,
           },
-          status: 'PENDING',
         },
-        data: {
-          status: 'REJECTED',
+        select: {
+          professionalId: true,
         },
       });
 
+      await tx.proposal.deleteMany({
+        where: {
+          jobId: proposal.jobId,
+          id: {
+            not: proposalId,
+          },
+        },
+      });
+
+      // Segue para o pagamento
       const updatedJob = await tx.job.updateMany({
         where: {
           id: proposal.jobId,
           status: 'OPEN',
         },
         data: {
-          status: 'IN_PROGRESS',
+          status: 'AWAITING_PAYMENT',
         },
       });
 
       if (updatedJob.count !== 1) {
         throw new ConflictException('Este trabalho já não está disponível');
+      }
+
+      await this.notificationsService.create(
+        {
+          userId: proposal.professionalId,
+          type: 'PROPOSAL_ACCEPTED',
+          title: 'Proposta aceite',
+          message: `A tua proposta para "${proposal.job.title}" foi aceite. Assim que o cliente efetuar o pagamento, podes iniciar o trabalho.`,
+        },
+        tx,
+      );
+
+      for (const other of otherProposals) {
+        await this.notificationsService.create(
+          {
+            userId: other.professionalId,
+            type: 'PROPOSAL_NOT_SELECTED',
+            title: 'Proposta não selecionada',
+            message: `O cliente escolheu outra proposta para "${proposal.job.title}".`,
+          },
+          tx,
+        );
       }
 
       return acceptedProposal;

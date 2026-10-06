@@ -4,6 +4,7 @@ import {
   Controller,
   Get,
   Param,
+  Patch,
   Post,
   UploadedFile,
   UseGuards,
@@ -38,6 +39,43 @@ export class JobsController {
   @Get('my-jobs')
   async getMyJobs(@CurrentUser() user: { sub: string }) {
     return this.jobsService.getMyJobs(user.sub);
+  }
+
+  // Trabalhos atribuídos ao profissional autenticado
+  @UseGuards(AuthGuard)
+  @Get('assigned')
+  async getAssignedJobs(@CurrentUser() user: { sub: string }) {
+    return this.jobsService.getAssignedJobs(user.sub);
+  }
+
+  // Profissional: PAID → IN_PROGRESS
+  @UseGuards(AuthGuard)
+  @Patch(':jobId/start')
+  async start(
+    @CurrentUser() user: { sub: string },
+    @Param('jobId') jobId: string,
+  ) {
+    return this.jobsService.start(jobId, user.sub);
+  }
+
+  // Profissional: IN_PROGRESS → AWAITING_CONFIRMATION
+  @UseGuards(AuthGuard)
+  @Patch(':jobId/mark-done')
+  async markDone(
+    @CurrentUser() user: { sub: string },
+    @Param('jobId') jobId: string,
+  ) {
+    return this.jobsService.markDone(jobId, user.sub);
+  }
+
+  // Cliente: AWAITING_CONFIRMATION → COMPLETED (liberta o pagamento)
+  @UseGuards(AuthGuard)
+  @Patch(':jobId/confirm-completion')
+  async confirmCompletion(
+    @CurrentUser() user: { sub: string },
+    @Param('jobId') jobId: string,
+  ) {
+    return this.jobsService.confirmCompletion(jobId, user.sub);
   }
 
   @UseGuards(AuthGuard)

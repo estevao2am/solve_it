@@ -7,13 +7,14 @@ import { UsersModule } from './users/users.module';
 
 import { MailModule } from './config/mail/mail.module';
 import { CategoryModule } from './category/category.module';
-import { JobsService } from './job/job.service';
 import { JobModule } from './job/job.module';
 import { LocationModule } from './location/location.module';
 import { ProfessionalModule } from './professional/professional.module';
 import { NotificationModule } from './notification/notification.module';
 import { ProposalModule } from './proposal/proposal.module';
 import { PortfolioModule } from './portfolio/portfolio.module';
+import { WalletModule } from './wallet/wallet.module';
+import { PaymentModule } from './payment/payment.module';
 
 @Module({
   imports: [
@@ -38,8 +39,12 @@ import { PortfolioModule } from './portfolio/portfolio.module';
     ProposalModule,
 
     PortfolioModule,
+
+    WalletModule,
+
+    PaymentModule,
   ],
   controllers: [AppController],
-  providers: [AppService, JobsService],
+  providers: [AppService],
 })
 export class AppModule {}

@@ -135,6 +135,11 @@ export class ProfessionalProfileService {
             avatar_url: true,
           },
         },
+        portfolioItems: {
+          include: {
+            images: true,
+          },
+        },
       },
     });
 

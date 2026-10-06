@@ -65,6 +65,36 @@ npx prisma migrate dev
 npm run start:dev
 ```
 
+## Quick start
+
+Requirements: Node 20+ and Docker Desktop running.
+
+```bash
+npm run setup
+```
+
+This single command:
+
+1. Creates `.env` from `.env.example` (with a random `JWT_SECRET`) if it does not exist
+2. Installs dependencies (`npm ci`)
+3. Starts PostgreSQL and Mailpit with Docker and waits until they are ready
+4. Generates the Prisma Client and applies the migrations
+5. Starts the API in dev mode at http://localhost:3001 (Mailpit inbox at http://localhost:8025)
+
+It is safe to run again. Fill in the Cloudinary keys in `.env` to enable image uploads.
+
+## Docker
+
+Run the full stack (PostgreSQL, Mailpit, migrations and the API):
+
+```bash
+docker compose up -d --build
+```
+
+- The `migrate` service runs `prisma migrate deploy` before the API starts.
+- The API reads secrets from `.env`; `DATABASE_URL` and `SMTP_HOST` are overridden to point at the containers.
+- The API listens on port `3001`. Use `API_PORT=3002 docker compose up -d` to publish it on another host port.
+
 ## API Routes
 
 ### Users

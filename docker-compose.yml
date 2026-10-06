@@ -14,6 +14,12 @@ services:
     volumes:
       - postgres_data:/bitnami/postgresql
 
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U docker -d solve_db']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   mailpit:
     container_name: solve_mailpit
     image: axllent/mailpit:latest
@@ -24,6 +30,46 @@ services:
 
     volumes:
       - mailpit_data:/data
+
+  # Aplica as migrações do Prisma antes de a API arrancar
+  migrate:
+    container_name: solve_migrate
+    build:
+      context: .
+      target: build
+    command: ['npx', 'prisma', 'migrate', 'deploy']
+
+    environment:
+      DATABASE_URL: postgresql://docker:docker@postgres:5432/solve_db?schema=public
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    container_name: solve_api
+    image: solve-api:latest
+    build:
+      context: .
+      target: runner
+
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://docker:docker@postgres:5432/solve_db?schema=public
+      SMTP_HOST: mailpit
+      SMTP_PORT: 1025
+      PORT: 3001
+
+    ports:
+      - '${API_PORT:-3001}:3001'
+
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      mailpit:
+        condition: service_started
+
+    restart: unless-stopped
 
 volumes:
   postgres_data:

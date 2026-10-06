@@ -5,13 +5,21 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 
+import { JobStatus, Prisma } from '@prisma/client';
+
 import { CreateJobDto } from './dto/create-job.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
 import cloudinary from 'src/config/cloudinary ';
+import { NotificationsService } from 'src/notification/notification.service';
+import { PaymentsService } from 'src/payment/payment.service';
 
 @Injectable()
 export class JobsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly paymentsService: PaymentsService,
+    private readonly notificationsService: NotificationsService,
+  ) {}
 
   // --------------------------------
   // Criar Job
@@ -250,6 +258,226 @@ export class JobsService {
     });
 
     return jobImage;
+  }
+
+  // --------------------------------
+  // Trabalhos atribuídos ao profissional (proposta aceite)
+  // --------------------------------
+  async getAssignedJobs(professionalId: string) {
+    return this.prisma.job.findMany({
+      where: {
+        proposals: {
+          some: {
+            professionalId,
+            status: 'ACCEPTED',
+          },
+        },
+      },
+
+      include: {
+        category: true,
+
+        client: {
+          select: {
+            id: true,
+            first_name: true,
+            last_name: true,
+            avatar_url: true,
+          },
+        },
+
+        images: true,
+
+        proposals: {
+          where: {
+            professionalId,
+            status: 'ACCEPTED',
+          },
+          select: {
+            id: true,
+            price: true,
+          },
+        },
+
+        payment: {
+          select: {
+            status: true,
+            method: true,
+            professionalAmount: true,
+            paidAt: true,
+            releasedAt: true,
+          },
+        },
+      },
+
+      orderBy: {
+        updatedAt: 'desc',
+      },
+    });
+  }
+
+  // --------------------------------
+  // Profissional inicia o trabalho (PAID → IN_PROGRESS)
+  // --------------------------------
+  async start(jobId: string, professionalId: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const job = await this.findAssignedJob(tx, jobId, professionalId);
+
+      await this.transition(
+        tx,
+        job.id,
+        'PAID',
+        'IN_PROGRESS',
+        'O trabalho só pode ser iniciado depois de pago',
+      );
+
+      await this.notificationsService.create(
+        {
+          userId: job.clientId,
+          type: 'JOB_STATUS_UPDATED',
+          title: 'Trabalho iniciado',
+          message: `O profissional iniciou o trabalho "${job.title}".`,
+        },
+        tx,
+      );
+
+      return { id: job.id, status: 'IN_PROGRESS' as const };
+    });
+  }
+
+  // --------------------------------
+  // Profissional marca como concluído (IN_PROGRESS → AWAITING_CONFIRMATION)
+  // --------------------------------
+  async markDone(jobId: string, professionalId: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const job = await this.findAssignedJob(tx, jobId, professionalId);
+
+      await this.transition(
+        tx,
+        job.id,
+        'IN_PROGRESS',
+        'AWAITING_CONFIRMATION',
+        'O trabalho tem de estar em curso para ser marcado como concluído',
+      );
+
+      await this.notificationsService.create(
+        {
+          userId: job.clientId,
+          type: 'JOB_STATUS_UPDATED',
+          title: 'Confirma a conclusão do trabalho',
+          message: `O profissional marcou "${job.title}" como concluído. Confirma para libertar o pagamento.`,
+        },
+        tx,
+      );
+
+      return { id: job.id, status: 'AWAITING_CONFIRMATION' as const };
+    });
+  }
+
+  // --------------------------------
+  // Cliente confirma a conclusão (AWAITING_CONFIRMATION → COMPLETED)
+  // e o valor retido é creditado na carteira do profissional.
+  // --------------------------------
+  async confirmCompletion(jobId: string, clientId: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const job = await tx.job.findUnique({
+        where: {
+          id: jobId,
+        },
+        select: {
+          id: true,
+          clientId: true,
+        },
+      });
+
+      if (!job) {
+        throw new NotFoundException('Trabalho não encontrado');
+      }
+
+      if (job.clientId !== clientId) {
+        throw new ForbiddenException(
+          'Não tens permissão para concluir este trabalho',
+        );
+      }
+
+      await this.transition(
+        tx,
+        job.id,
+        'AWAITING_CONFIRMATION',
+        'COMPLETED',
+        'O profissional ainda não marcou o trabalho como concluído',
+      );
+
+      const payment = await this.paymentsService.release(tx, job.id);
+
+      // amount = valor pago pelo cliente e libertado ao profissional
+      return {
+        id: job.id,
+        status: 'COMPLETED' as const,
+        amount: payment.amount,
+      };
+    });
+  }
+
+  // --------------------------------
+  // Helpers do fluxo
+  // --------------------------------
+  private async findAssignedJob(
+    tx: Prisma.TransactionClient,
+    jobId: string,
+    professionalId: string,
+  ) {
+    const job = await tx.job.findUnique({
+      where: {
+        id: jobId,
+      },
+      select: {
+        id: true,
+        title: true,
+        clientId: true,
+        proposals: {
+          where: {
+            status: 'ACCEPTED',
+          },
+          select: {
+            professionalId: true,
+          },
+        },
+      },
+    });
+
+    if (!job) {
+      throw new NotFoundException('Trabalho não encontrado');
+    }
+
+    if (job.proposals[0]?.professionalId !== professionalId) {
+      throw new ForbiddenException('Este trabalho não te está atribuído');
+    }
+
+    return job;
+  }
+
+  // Atualização condicional: falha se o estado mudou entretanto.
+  private async transition(
+    tx: Prisma.TransactionClient,
+    jobId: string,
+    from: JobStatus,
+    to: JobStatus,
+    errorMessage: string,
+  ) {
+    const updated = await tx.job.updateMany({
+      where: {
+        id: jobId,
+        status: from,
+      },
+      data: {
+        status: to,
+      },
+    });
+
+    if (updated.count !== 1) {
+      throw new BadRequestException(errorMessage);
+    }
   }
 }
 

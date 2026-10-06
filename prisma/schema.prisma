@@ -16,10 +16,14 @@ enum Role {
   PROFESSIONAL
 }
 
+// Fluxo: OPEN → AWAITING_PAYMENT → PAID → IN_PROGRESS → AWAITING_CONFIRMATION → COMPLETED
 enum JobStatus {
   OPEN
   PENDING
+  AWAITING_PAYMENT // proposta aceite, à espera do pagamento do cliente
+  PAID // pagamento retido na plataforma, à espera do início
   IN_PROGRESS
+  AWAITING_CONFIRMATION // profissional terminou, cliente tem de confirmar
   COMPLETED
   CANCELLED
 }
@@ -69,6 +73,10 @@ model User {
   reviewsReceived Review[]       @relation("ReviewsReceived")
   proposals       Proposal[]     @relation("ProfessionalProposals")
   notifications   Notification[]
+
+  wallet           Wallet?
+  paymentsMade     Payment[] @relation("ClientPayments")
+  paymentsReceived Payment[] @relation("ProfessionalPayments")
 
   @@map("users")
 }
@@ -121,6 +129,11 @@ model ProfessionalProfile {
   // Dados de Pagamento
   accountHolder String
   iban          String
+
+  // Método de recebimento usado nos levantamentos da carteira
+  payoutMethod    PayoutMethod @default(BANK_TRANSFER)
+  payoutPhone     String? // MB WAY
+  payoutCardLast4 String? // Cartão (só os últimos 4 dígitos)
 
   // Documentos
   documents ProfessionalDocument[]
@@ -205,6 +218,7 @@ model Job {
   images    JobImage[]
   proposals Proposal[]
   reviews   Review[]
+  payment   Payment?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -270,6 +284,11 @@ enum NotificationType {
   ACCOUNT_APPROVED
   ACCOUNT_REJECTED
   SYSTEM
+  PROPOSAL_ACCEPTED
+  PROPOSAL_NOT_SELECTED
+  PAYMENT_CONFIRMED
+  JOB_STATUS_UPDATED
+  WALLET_CREDITED
 }
 
 model Notification {
@@ -281,6 +300,9 @@ model Notification {
   type    NotificationType
   title   String
   message String
+
+  // Dados para a app abrir o ecrã certo (ex.: { paymentId, jobId, amount })
+  data Json?
 
   isRead Boolean @default(false)
 
@@ -324,4 +346,119 @@ model PortfolioImage {
 
   @@index([portfolioItemId])
   @@map("portfolio_images")
+}
+
+// ==============================
+// PAGAMENTOS (ESCROW) & CARTEIRA
+// ==============================
+
+enum PaymentMethod {
+  CARD
+  MBWAY
+  MULTIBANCO
+}
+
+enum PaymentStatus {
+  PENDING // à espera de confirmação do provider (ex.: referência Multibanco)
+  HELD // pago pelo cliente e retido na plataforma
+  RELEASED // transferido para a carteira do profissional
+  REFUNDED
+  FAILED
+}
+
+// Um pagamento por trabalho. O valor fica retido (HELD) até o cliente
+// confirmar a conclusão; nessa altura é creditado na carteira (RELEASED).
+model Payment {
+  id String @id @default(uuid())
+
+  jobId String @unique
+  job   Job    @relation(fields: [jobId], references: [id], onDelete: Restrict)
+
+  clientId       String
+  client         User   @relation("ClientPayments", fields: [clientId], references: [id], onDelete: Restrict)
+  professionalId String
+  professional   User   @relation("ProfessionalPayments", fields: [professionalId], references: [id], onDelete: Restrict)
+
+  amount             Decimal @db.Decimal(10, 2) // pago pelo cliente
+  platformFee        Decimal @db.Decimal(10, 2)
+  professionalAmount Decimal @db.Decimal(10, 2) // creditado na carteira
+
+  method PaymentMethod
+  status PaymentStatus @default(PENDING)
+
+  providerRef String?
+  phone       String? // MB WAY
+  mbEntity    String? // Multibanco
+  mbReference String? // Multibanco
+
+  paidAt     DateTime?
+  releasedAt DateTime?
+
+  walletTransaction WalletTransaction?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([clientId])
+  @@index([professionalId, status])
+  @@map("payments")
+}
+
+model Wallet {
+  id String @id @default(uuid())
+
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  balance Decimal @default(0) @db.Decimal(12, 2)
+
+  transactions WalletTransaction[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("wallets")
+}
+
+enum WalletTransactionType {
+  CREDIT
+  WITHDRAWAL
+}
+
+enum WalletTransactionStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
+// Forma de levantamento do saldo da carteira
+enum PayoutMethod {
+  BANK_TRANSFER
+  MBWAY
+  CARD
+}
+
+model WalletTransaction {
+  id String @id @default(uuid())
+
+  walletId String
+  wallet   Wallet @relation(fields: [walletId], references: [id], onDelete: Restrict)
+
+  type        WalletTransactionType
+  status      WalletTransactionStatus @default(COMPLETED)
+  amount      Decimal                 @db.Decimal(12, 2)
+  description String
+
+  // Só em levantamentos: método e destino já mascarado (ex.: "Cartão •••• 4242")
+  payoutMethod      PayoutMethod?
+  payoutDestination String?
+
+  // Único: garante que um pagamento só é creditado uma vez.
+  paymentId String?  @unique
+  payment   Payment? @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+
+  @@index([walletId, createdAt])
+  @@map("wallet_transactions")
 }
