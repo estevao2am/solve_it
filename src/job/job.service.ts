@@ -10,6 +10,7 @@ import { JobStatus, Prisma } from '@prisma/client';
 import { CreateJobDto } from './dto/create-job.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
 import cloudinary from 'src/config/cloudinary ';
+import { composeAddressLine } from 'src/common/portuguese-address';
 import { NotificationsService } from 'src/notification/notification.service';
 import { PaymentsService } from 'src/payment/payment.service';
 
@@ -41,8 +42,10 @@ export class JobsService {
     // --------------------------------
     // 2. Criar Job
     // --------------------------------
-    // A localização é inserida manualmente
-    // pelo utilizador.
+    // A localização é inserida manualmente pelo utilizador
+    // (a pesquisa de moradas/mapas fica para a versão final).
+    const complement = dto.complement || null;
+
     const job = await this.prisma.job.create({
       data: {
         title: dto.title,
@@ -54,7 +57,10 @@ export class JobsService {
         // --------------------------------
         // Morada inserida manualmente
         // --------------------------------
-        address: dto.address,
+        street: dto.street,
+        houseNumber: dto.houseNumber,
+        complement,
+        address: composeAddressLine(dto.street, dto.houseNumber, complement),
         postal_code: dto.postal_code,
         city: dto.city,
       },
@@ -258,6 +264,100 @@ export class JobsService {
     });
 
     return jobImage;
+  }
+
+  // --------------------------------
+  // Novos pedidos para o profissional (pode enviar proposta)
+  // Abertos, da categoria dele e que não são dele. Sem a morada exata:
+  // só a localidade e a zona do código postal (ex.: "1100"), até a
+  // proposta ser aceite.
+  // --------------------------------
+  async getAvailableJobs(professionalId: string) {
+    const profile = await this.prisma.professionalProfile.findUnique({
+      where: {
+        userId: professionalId,
+      },
+      select: {
+        categoryId: true,
+      },
+    });
+
+    if (!profile) {
+      throw new ForbiddenException(
+        'Apenas profissionais podem ver novos pedidos',
+      );
+    }
+
+    const jobs = await this.prisma.job.findMany({
+      where: {
+        status: 'OPEN',
+        categoryId: profile.categoryId,
+        clientId: {
+          not: professionalId,
+        },
+      },
+
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        createdAt: true,
+        city: true,
+        postal_code: true,
+
+        category: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+
+        images: {
+          select: {
+            id: true,
+            url: true,
+          },
+        },
+
+        client: {
+          select: {
+            first_name: true,
+          },
+        },
+
+        _count: {
+          select: {
+            proposals: true,
+          },
+        },
+
+        // A proposta deste profissional, se já enviou
+        proposals: {
+          where: {
+            professionalId,
+          },
+          select: {
+            id: true,
+            price: true,
+            coverLetter: true,
+            status: true,
+            createdAt: true,
+          },
+        },
+      },
+
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    return jobs.map(({ postal_code, client, _count, proposals, ...job }) => ({
+      ...job,
+      postalArea: postal_code ? postal_code.slice(0, 4) : null,
+      clientFirstName: client.first_name,
+      proposalCount: _count.proposals,
+      myProposal: proposals[0] ?? null,
+    }));
   }
 
   // --------------------------------

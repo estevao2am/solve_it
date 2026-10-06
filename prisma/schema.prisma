@@ -51,20 +51,23 @@ enum ProfessionalStatus {
 // ==============================
 
 model User {
-  id            String  @id @default(uuid())
+  id            String    @id @default(uuid())
   first_name    String
   last_name     String?
-  email         String  @unique
+  email         String    @unique
   password_hash String
   city          String?
   address       String?
   phone         String?
   postal_code   String?
   avatar_url    String?
-  role          Role    @default(USER)
+  role          Role      @default(USER)
+  // Quando terminou a configuração inicial da conta (onboarding)
+  onboarded_at  DateTime?
 
-  refresh_token RefreshToken?
-  professional  ProfessionalProfile?
+  refresh_token      RefreshToken?
+  passwordResetCodes PasswordResetCode[]
+  professional       ProfessionalProfile?
 
   created_at      DateTime       @default(now())
   updated_at      DateTime       @updatedAt
@@ -98,6 +101,27 @@ model RefreshToken {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("refresh_token")
+}
+
+// ==============================
+// RECUPERAÇÃO DA PALAVRA-PASSE
+// ==============================
+
+// Código de 6 dígitos enviado por e-mail (só o hash fica guardado)
+model PasswordResetCode {
+  id        String    @id @default(uuid())
+  codeHash  String    @map("code_hash")
+  attempts  Int       @default(0)
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+
+  userId String @map("user_id")
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@map("password_reset_codes")
 }
 
 // ==============================
@@ -203,6 +227,11 @@ model Job {
   status           JobStatus @default(OPEN)
   locationVerified Boolean   @default(false)
 
+  // Morada inserida manualmente, por partes
+  street      String? // ex.: "Rua Augusta"
+  houseNumber String? // ex.: "25", "25A", "s/n"
+  complement  String? // ex.: "2.º Esq." (opcional)
+  // Linha completa, composta a partir das partes (ex.: "Rua Augusta, 25, 2.º Esq.")
   address     String?
   city        String?
   postal_code String?

@@ -41,6 +41,13 @@ export class JobsController {
     return this.jobsService.getMyJobs(user.sub);
   }
 
+  // Novos pedidos para o profissional autenticado enviar propostas
+  @UseGuards(AuthGuard)
+  @Get('available')
+  async getAvailableJobs(@CurrentUser() user: { sub: string }) {
+    return this.jobsService.getAvailableJobs(user.sub);
+  }
+
   // Trabalhos atribuídos ao profissional autenticado
   @UseGuards(AuthGuard)
   @Get('assigned')

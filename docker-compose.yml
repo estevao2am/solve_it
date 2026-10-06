@@ -53,7 +53,11 @@ services:
       context: .
       target: runner
 
-    env_file: .env
+    env_file:
+      - .env
+      # Segredos fora do git (ex.: GOOGLE_PLACES_API_KEY); opcional
+      - path: .env.local
+        required: false
     environment:
       DATABASE_URL: postgresql://docker:docker@postgres:5432/solve_db?schema=public
       SMTP_HOST: mailpit

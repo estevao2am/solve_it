@@ -8,6 +8,7 @@ import { ConfigService } from '@nestjs/config';
 
 import {
   ChangePasswordDto,
+  CompleteOnboardingDto,
   CreateUserDto,
   LoginUserDto,
   UpdateUserDto,
@@ -57,6 +58,15 @@ export class UsersService {
     const { password_hash, ...userWithoutPassword } = user;
 
     return userWithoutPassword;
+  }
+
+  async isEmailAvailable(email: string) {
+    const user = await this.prismaService.user.findUnique({
+      where: { email },
+      select: { id: true },
+    });
+
+    return { available: !user };
   }
 
   async loginUser(data: LoginUserDto) {
@@ -223,6 +233,27 @@ export class UsersService {
         id,
       },
       data,
+    });
+  }
+
+  async completeOnboarding(id: string, data: CompleteOnboardingDto) {
+    const findUser = await this.prismaService.user.findUnique({
+      where: { id },
+      select: { onboarded_at: true },
+    });
+
+    if (!findUser) {
+      throw new NotFoundException('User not found');
+    }
+
+    return this.prismaService.user.update({
+      where: { id },
+      data: {
+        ...data,
+        // Repetir não altera a data em que terminou pela primeira vez
+        onboarded_at: findUser.onboarded_at ?? new Date(),
+      },
+      omit: { password_hash: true },
     });
   }
 

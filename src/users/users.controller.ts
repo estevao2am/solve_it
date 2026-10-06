@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  HttpCode,
   Param,
   Delete,
   Patch,
@@ -15,25 +16,63 @@ import { FileInterceptor } from '@nestjs/platform-express';
 
 import {
   ChangePasswordDto,
+  CompleteOnboardingDto,
   CreateUserDto,
+  EmailDto,
   LoginUserDto,
   RefreshTokenDto,
+  ResetPasswordDto,
   UpdateUserDto,
+  VerifyResetCodeDto,
 } from './dto/user';
 
 import { UsersService } from './users.service';
+import { PasswordResetService } from './password-reset.service';
 import { AuthGuard } from './auth.guard';
 import { CurrentUser } from './decorator/current-user.decorator';
 import { multerConfig } from '../config/multer';
 
 @Controller('users')
 export class UsersController {
-  constructor(private usersServices: UsersService) {}
+  constructor(
+    private usersServices: UsersService,
+    private passwordResetService: PasswordResetService,
+  ) {}
 
   // Criar utilizador
   @Post('/')
   async createUser(@Body() body: CreateUserDto) {
     return await this.usersServices.createUser(body);
+  }
+
+  // Criar conta: o e-mail ainda está livre?
+  @Post('/email-available')
+  @HttpCode(200)
+  async isEmailAvailable(@Body() body: EmailDto) {
+    return await this.usersServices.isEmailAvailable(body.email);
+  }
+
+  // Recuperar palavra-passe: 1) pedir código, 2) confirmar, 3) trocar
+  @Post('/password/forgot')
+  @HttpCode(200)
+  async forgotPassword(@Body() body: EmailDto) {
+    return await this.passwordResetService.requestCode(body.email);
+  }
+
+  @Post('/password/verify-code')
+  @HttpCode(200)
+  async verifyResetCode(@Body() body: VerifyResetCodeDto) {
+    return await this.passwordResetService.verifyCode(body.email, body.code);
+  }
+
+  @Post('/password/reset')
+  @HttpCode(200)
+  async resetPassword(@Body() body: ResetPasswordDto) {
+    return await this.passwordResetService.resetPassword(
+      body.email,
+      body.code,
+      body.new_password,
+    );
   }
 
   // Login
@@ -70,6 +109,16 @@ export class UsersController {
     @Body() body: UpdateUserDto,
   ) {
     return await this.usersServices.updateUser(user.sub, body);
+  }
+
+  // Terminar a configuração inicial da conta (onboarding)
+  @UseGuards(AuthGuard)
+  @Patch('/me/onboarding')
+  async completeOnboarding(
+    @CurrentUser() user: { sub: string },
+    @Body() body: CompleteOnboardingDto,
+  ) {
+    return await this.usersServices.completeOnboarding(user.sub, body);
   }
 
   // Alterar fotografia

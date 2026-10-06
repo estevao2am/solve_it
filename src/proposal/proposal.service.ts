@@ -201,6 +201,8 @@ export class ProposalsService {
             first_name: true,
             last_name: true,
             email: true,
+            // Foto do profissional (mostrada nas propostas/comentários)
+            avatar_url: true,
             professional: {
               select: {
                 bio: true,

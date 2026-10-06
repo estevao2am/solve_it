@@ -3,6 +3,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule, JwtModuleOptions } from '@nestjs/jwt';
 import type { StringValue } from 'ms';
 
+import { PasswordResetService } from './password-reset.service';
 import { UsersController } from './users.controller';
 import { UsersService } from './users.service';
 import { MailModule } from 'src/config/mail/mail.module';
@@ -25,6 +26,6 @@ import { MailModule } from 'src/config/mail/mail.module';
     }),
   ],
   controllers: [UsersController],
-  providers: [UsersService],
+  providers: [UsersService, PasswordResetService],
 })
 export class UsersModule {}

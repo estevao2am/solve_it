@@ -20,6 +20,9 @@ import { PaymentModule } from './payment/payment.module';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
+      // .env.local (fora do git) para segredos como GOOGLE_PLACES_API_KEY;
+      // tem prioridade sobre o .env.
+      envFilePath: ['.env.local', '.env'],
     }),
     PrismaModule,
     MailModule,
